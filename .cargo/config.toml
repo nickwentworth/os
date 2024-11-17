@@ -2,6 +2,7 @@
 target = "aarch64-unknown-none"
 
 [target.aarch64-unknown-none]
+linker = "aarch64-elf-ld"
 rustflags = [
     "-C", "link-arg=target/boot.o",
     "-C", "link-arg=-Tsrc/linker.ld",
