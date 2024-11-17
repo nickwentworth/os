@@ -1,24 +1,17 @@
 #![no_std]
 #![no_main]
 
-use core::panic::PanicInfo;
+mod uart;
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{}", info);
     loop {}
 }
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
-    let test_buffer = 0x100000 as *mut u8;
-
-    unsafe {
-        *test_buffer.offset(0) = b'H';
-        *test_buffer.offset(1) = b'E';
-        *test_buffer.offset(2) = b'L';
-        *test_buffer.offset(3) = b'L';
-        *test_buffer.offset(4) = b'O';
-    }
-
-    loop {}
+    println!("Hello world!");
+    println!("{} / {} = {:.6}", 2, 3, 2f32 / 3f32);
+    panic!("We should panic here!");
 }
