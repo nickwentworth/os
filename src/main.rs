@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod registers;
 mod uart;
 
 #[panic_handler]
@@ -11,7 +12,11 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
-    println!("Hello world!");
-    println!("{} / {} = {:.6}", 2, 3, 2f32 / 3f32);
-    panic!("We should panic here!");
+    unsafe {
+        let mut el: u64;
+        core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
+        println!("Entering kernel at EL{}", (el >> 2) & 0b11);
+    }
+
+    loop {}
 }

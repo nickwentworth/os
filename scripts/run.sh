@@ -8,4 +8,4 @@ aarch64-elf-as src/boot.s -o target/boot.o
 cargo build --release
 aarch64-elf-objcopy target/aarch64-unknown-none/release/os target/kernel.bin
 
-qemu-system-aarch64 -M raspi4b -kernel target/kernel.bin -serial stdio -s
+qemu-system-aarch64 -M raspi4b -kernel target/kernel.bin -serial stdio -d int -s
