@@ -47,14 +47,14 @@ impl core::fmt::Write for UartPl011 {
 #[macro_export]
 macro_rules! println {
     ($($args:tt)*) => {
-        print!("{}\n", format_args!($($args)*))
+        $crate::print!("{}\n", format_args!($($args)*))
     };
 }
 
 #[macro_export]
 macro_rules! print {
     ($($args:tt)*) => {
-        uart::_print(format_args!($($args)*))
+        $crate::uart::_print(format_args!($($args)*))
     };
 }
 

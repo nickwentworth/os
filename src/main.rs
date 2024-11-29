@@ -18,5 +18,15 @@ pub extern "C" fn _kernel_main() -> ! {
         println!("Entering kernel at EL{}", (el >> 2) & 0b11);
     }
 
+    unsafe {
+        core::ptr::read_volatile(0xFFFF_FFFF_FFFF_FFFF as *mut u32);
+    }
+
+    loop {}
+}
+
+#[no_mangle]
+pub extern "C" fn _handle_exception() {
+    println!("Got an exception!");
     loop {}
 }

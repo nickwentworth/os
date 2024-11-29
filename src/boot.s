@@ -51,6 +51,10 @@ el1_entry:
     ldr     x5, __CPACR_EL1
     msr     CPACR_EL1, x5
 
+    // reference exception vector table
+    adr     x5, _vector_table
+    msr     VBAR_EL1, x5
+
     // initialize stack
     ldr     x5, =_start
     mov     sp, x5
