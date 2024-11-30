@@ -1,9 +1,56 @@
-// TODO: send the enumerated type to the kernel to handle different exceptions
 .macro vec_item type
     // align each item to 0x80 bytes
     .balign 0x80
-    bl      _handle_exception
+
+    // to send the type to the kernel, store x0 first
+    // so we can write the type to a register
+    stp     x0, x0, [sp, #-0x10]!
+    mov     x0, #\type
+    b       exception_handler
 .endm
+
+exception_handler:
+    // save current processor state
+    // besides x0, as it has already been saved
+    stp     x1, x2, [sp, #-0x10]!
+    stp     x3, x4, [sp, #-0x10]!
+    stp     x5, x6, [sp, #-0x10]!
+    stp     x7, x8, [sp, #-0x10]!
+    stp     x9, x10, [sp, #-0x10]!
+    stp     x11, x12, [sp, #-0x10]!
+    stp     x13, x14, [sp, #-0x10]!
+    stp     x15, x16, [sp, #-0x10]!
+    stp     x17, x18, [sp, #-0x10]!
+    stp     x19, x20, [sp, #-0x10]!
+    stp     x21, x22, [sp, #-0x10]!
+    stp     x23, x24, [sp, #-0x10]!
+    stp     x25, x26, [sp, #-0x10]!
+    stp     x27, x28, [sp, #-0x10]!
+    stp     x29, x30, [sp, #-0x10]!
+
+    // branch to kernel exception handler
+    bl      _handle_exception
+
+    // load stored processor state in reverse order
+    ldp     x29, x30, [sp, #-0x10]!
+    ldp     x27, x28, [sp, #-0x10]!
+    ldp     x25, x26, [sp, #-0x10]!
+    ldp     x23, x24, [sp, #-0x10]!
+    ldp     x21, x22, [sp, #-0x10]!
+    ldp     x19, x20, [sp, #-0x10]!
+    ldp     x17, x18, [sp, #-0x10]!
+    ldp     x15, x16, [sp, #-0x10]!
+    ldp     x13, x14, [sp, #-0x10]!
+    ldp     x11, x12, [sp, #-0x10]!
+    ldp     x9, x10, [sp, #-0x10]!
+    ldp     x7, x8, [sp, #-0x10]!
+    ldp     x5, x6, [sp, #-0x10]!
+    ldp     x3, x4, [sp, #-0x10]!
+    ldp     x1, x2, [sp, #-0x10]!
+    ldp     x0, xzr, [sp, #-0x10]! // including x0 here
+
+    // and finally return from the exception handler
+    eret
 
 .globl _vector_table
 .balign 2048 // align entire table to 2KB

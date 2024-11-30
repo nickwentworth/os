@@ -12,7 +12,7 @@ const SCR_EL3_NS: u64 = 1 << 0; // EL1 and EL0 are in non-secure state
 
 #[no_mangle]
 /// Saved program state register, used to move down from EL3 to EL2
-static __SPSR_EL3: u64 = 0b_111100_1000;
+static __SPSR_EL3: u64 = 0b_111100_1001;
 
 // -------------------- EL2 System Registers -------------------- //
 
@@ -24,7 +24,7 @@ const HCR_EL2_RW: u64 = 1 << 31; // EL1 is aarch64, PSTATE.nRW controls EL0 beha
 
 #[no_mangle]
 /// Saved program state register, used to move down from EL2 to EL1
-static __SPSR_EL2: u64 = 0b_111100_0100;
+static __SPSR_EL2: u64 = 0b_111100_0101;
 
 // -------------------- EL1 System Registers -------------------- //
 

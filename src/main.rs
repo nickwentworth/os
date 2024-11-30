@@ -22,11 +22,18 @@ pub extern "C" fn _kernel_main() -> ! {
         core::ptr::read_volatile(0xFFFF_FFFF_FFFF_FFFF as *mut u32);
     }
 
+    println!("Back from the exception!");
+
     loop {}
 }
 
 #[no_mangle]
-pub extern "C" fn _handle_exception() {
-    println!("Got an exception!");
+pub extern "C" fn _handle_exception(x0: u64) {
+    println!("Got an exception! Origin/Type Data: {}", x0);
+
+    // TODO: we should normally return, but the test invalid memory
+    // access would just cause us to keep raising exceptions forever
+    // because we aren't advancing the exception return address, so
+    // for now we will just loop forever in here
     loop {}
 }
