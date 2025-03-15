@@ -37,3 +37,18 @@ pub extern "C" fn _handle_exception(x0: u64) {
     // for now we will just loop forever in here
     loop {}
 }
+
+#[no_mangle]
+static mut __L0_TABLE: TranslationTable = TranslationTable::new();
+
+#[no_mangle]
+static mut __L1_TABLE: TranslationTable = TranslationTable::new();
+
+#[repr(align(4096))]
+struct TranslationTable([u64; 512]);
+
+impl TranslationTable {
+    const fn new() -> Self {
+        Self([0; 512])
+    }
+}
