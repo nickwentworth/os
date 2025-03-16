@@ -6,7 +6,7 @@ use core::{
 pub struct UartPl011;
 
 impl UartPl011 {
-    const UART0_BASE: u32 = 0xFE20_1000;
+    const UART0_BASE: u64 = 0xFFFF_0000_FE20_1000;
 
     // register offsets
     const DR: usize = 0x00;

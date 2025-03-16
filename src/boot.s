@@ -22,7 +22,7 @@ el3_entry:
     // move to EL2
     ldr     x5, __SPSR_EL3
     msr     SPSR_EL3, x5
-    ldr     x5, =el2_entry
+    adr     x5, el2_entry
     msr     ELR_EL3, x5
     eret
 
@@ -40,7 +40,7 @@ el2_entry:
     // move to EL1
     ldr     x5, __SPSR_EL2
     msr     SPSR_EL2, x5
-    ldr     x5, =el1_entry
+    adr     x5, el1_entry
     msr     ELR_EL2, x5
     eret
 
@@ -52,7 +52,7 @@ el1_entry:
     msr     CPACR_EL1, x5
 
     // reference exception vector table
-    adr     x5, _vector_table
+    ldr     x5, =_vector_table
     msr     VBAR_EL1, x5
 
     // initialize stack
@@ -76,6 +76,7 @@ el1_entry:
     // load L0 table base address into system register, then link to L1 table base address
     adr     x5, __L0_TABLE
     msr     TTBR0_EL1, x5
+    msr     TTBR1_EL1, x5
     adr     x6, __L1_TABLE
     orr     x7, x6, #0b11 // mark L0 entry as table descriptor
     str     x7, [x5]
@@ -103,7 +104,16 @@ el1_entry:
     msr     SCTLR_EL1, x5
     isb
 
-    // jump to virtual addressed rust code
+    // branch to an absolute virtual address
+    ldr     x5, =virtual_addr_jump
+    br      x5
+
+virtual_addr_jump:
+    // pc is now going off of virtual addresses, safe to reset TTBR0 identity map
+    msr     TTBR0_EL1, xzr
+    isb
+
+    // and jump to rust code
     b       _kernel_main
 
 // loop forever, send extra cpus here

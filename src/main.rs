@@ -19,23 +19,23 @@ pub extern "C" fn _kernel_main() -> ! {
     }
 
     unsafe {
-        core::ptr::read_volatile(0xFFFF_FFFF_FFFF_FFFF as *mut u32);
+        core::ptr::read_volatile(0xFFFF_0000_0000_0000 as *mut u32); // lowest physical address
+        core::ptr::read_volatile(0xFFFF_0000_7FFF_FFFC as *mut u32); // top-most physical address
+        println!("Good so far...");
+        core::ptr::read_volatile(0xFFFF_0000_8000_0000 as *mut u32); // now we get an exception!
+        println!("Not getting here!");
     }
-
-    println!("Back from the exception!");
 
     loop {}
 }
 
 #[no_mangle]
 pub extern "C" fn _handle_exception(x0: u64) {
-    println!("Got an exception! Origin/Type Data: {}", x0);
+    panic!("Got an exception! Origin/Type Data: {}", x0);
 
     // TODO: we should normally return, but the test invalid memory
     // access would just cause us to keep raising exceptions forever
-    // because we aren't advancing the exception return address, so
-    // for now we will just loop forever in here
-    loop {}
+    // because we aren't advancing the exception return address
 }
 
 #[no_mangle]

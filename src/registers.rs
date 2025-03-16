@@ -59,11 +59,13 @@ const MAIR_EL1_ATTR0: u64 = 0b1111_1111; // normal memory, cacheable
 
 #[no_mangle]
 /// Translation control register for EL1
-static __TCR_EL1: u64 = TCR_EL1_IPS | TCR_EL1_TG0 | TCR_EL1_T0SZ;
+static __TCR_EL1: u64 = TCR_EL1_IPS | TCR_EL1_TG1 | TCR_EL1_T1SZ | TCR_EL1_TG0 | TCR_EL1_T0SZ;
 
 const TCR_EL1_IPS: u64 = 0b101 << 32; // 48 bit intermediate physical address size
+const TCR_EL1_TG1: u64 = 0b10 << 30; // 4KB kernel space translation granule
+const TCR_EL1_T1SZ: u64 = 0b10000 << 16; // initial kernel space lookup level is L0, using all 48 VA bits
 const TCR_EL1_TG0: u64 = 0b00 << 14; // 4KB user space translation granule
-const TCR_EL1_T0SZ: u64 = 0b10000; // initial lookup level is L0, using all 48 bits of the virtual address
+const TCR_EL1_T0SZ: u64 = 0b10000; // initial user space lookup level is L0, using all 48 VA bits
 
 #[no_mangle]
 /// Default attributes to be used for the initial kernel identity map, except the physical address
