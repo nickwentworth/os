@@ -1,3 +1,4 @@
+use crate::mutex::Mutex;
 use core::{
     fmt::{self, Arguments, Write},
     ptr::{read_volatile, write_volatile},
@@ -58,7 +59,9 @@ macro_rules! print {
     };
 }
 
+static UART: Mutex<UartPl011> = Mutex::new(UartPl011);
+
 /// Helper function passed to print! macro
 pub fn _print(args: Arguments<'_>) {
-    UartPl011::write_fmt(&mut UartPl011, args).unwrap()
+    UART.lock().write_fmt(args).unwrap();
 }
