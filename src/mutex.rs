@@ -10,8 +10,9 @@ pub struct Mutex<T> {
     lock: AtomicBool,
 }
 
+// as long as T is safe to Send, its Mutex can be Send + Sync
 unsafe impl<T: Send> Send for Mutex<T> {}
-unsafe impl<T: Sync> Sync for Mutex<T> {}
+unsafe impl<T: Send> Sync for Mutex<T> {}
 
 impl<T> Mutex<T> {
     pub const fn new(obj: T) -> Self {

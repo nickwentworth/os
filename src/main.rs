@@ -1,9 +1,14 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
+
+mod allocator;
 mod mutex;
 mod registers;
 mod uart;
+
+use alloc::vec::Vec;
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -19,13 +24,19 @@ pub extern "C" fn _kernel_main() -> ! {
         println!("Entering kernel at EL{}", (el >> 2) & 0b11);
     }
 
-    unsafe {
-        core::ptr::read_volatile(0xFFFF_0000_0000_0000 as *mut u32); // lowest physical address
-        core::ptr::read_volatile(0xFFFF_0000_7FFF_FFFC as *mut u32); // top-most physical address
-        println!("Good so far...");
-        core::ptr::read_volatile(0xFFFF_0000_8000_0000 as *mut u32); // now we get an exception!
-        println!("Not getting here!");
+    allocator::init_global_allocator();
+
+    // TODO: would be cool to have some way to easily test things, like cargo test
+    // lets test out the allocator
+    let mut v = Vec::new();
+    let size = 10000;
+    for i in 0..size {
+        v.push(i);
     }
+    for i in 0..size {
+        assert_eq!(v.get(i), Some(&i));
+    }
+    println!("Basic allocation test passed!");
 
     loop {}
 }
