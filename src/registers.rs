@@ -58,6 +58,13 @@ static __MAIR_EL1: u64 = MAIR_EL1_ATTR0;
 const MAIR_EL1_ATTR0: u64 = 0b1111_1111; // normal memory, cacheable
 
 #[no_mangle]
+/// Counter-timer Physical Timer Control register
+static __CNTP_CTL_EL0: u32 = CNTP_CTL_EL0_IMASK | CNTP_CTL_EL0_ENABLE;
+
+const CNTP_CTL_EL0_IMASK: u32 = 0 << 1; // allow interrupts
+const CNTP_CTL_EL0_ENABLE: u32 = 1; // enable timer
+
+#[no_mangle]
 /// Translation control register for EL1
 static __TCR_EL1: u64 = TCR_EL1_IPS | TCR_EL1_TG1 | TCR_EL1_T1SZ | TCR_EL1_TG0 | TCR_EL1_T0SZ;
 

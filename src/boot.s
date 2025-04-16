@@ -50,6 +50,10 @@ el1_entry:
     msr     SCTLR_EL1, x5
     ldr     x5, __CPACR_EL1
     msr     CPACR_EL1, x5
+    ldr     x5, __CNTP_CTL_EL0
+    msr     CNTP_CTL_EL0, x5
+    
+    msr     DAIFCLR, #0b1111 // enable all interrupts
 
     // reference exception vector table
     ldr     x5, =_vector_table

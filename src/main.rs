@@ -4,11 +4,14 @@
 extern crate alloc;
 
 mod allocator;
+mod gic;
 mod mutex;
 mod registers;
+mod timer;
 mod uart;
 
 use alloc::vec::Vec;
+use core::time::Duration;
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -37,6 +40,11 @@ pub extern "C" fn _kernel_main() -> ! {
         assert_eq!(v.get(i), Some(&i));
     }
     println!("Basic allocation test passed!");
+
+    unsafe {
+        timer::HardwareTimer::set_timer_interrupt(Duration::from_secs(5));
+        gic::Gic::init();
+    }
 
     loop {}
 }
