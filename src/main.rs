@@ -4,20 +4,15 @@
 extern crate alloc;
 
 mod allocator;
-mod gic;
+mod devices;
+mod exception;
 mod mutex;
 mod registers;
-mod timer;
-mod uart;
 
 use alloc::vec::Vec;
 use core::time::Duration;
-
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    println!("{}", info);
-    loop {}
-}
+use devices::generic::{gic::GICv2, timer::ArmPhysTimer};
+use exception::irq::IRQ;
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
@@ -42,8 +37,9 @@ pub extern "C" fn _kernel_main() -> ! {
     println!("Basic allocation test passed!");
 
     unsafe {
-        timer::HardwareTimer::set_timer_interrupt(Duration::from_secs(5));
-        gic::Gic::init();
+        ArmPhysTimer::set_timer_interrupt(Duration::from_secs(3));
+        GICv2::init();
+        GICv2::enable_irq(IRQ::GenericPhysTimer);
     }
 
     loop {}
@@ -58,9 +54,14 @@ pub extern "C" fn _handle_exception(x0: u64) {
     // because we aren't advancing the exception return address
 }
 
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{}", info);
+    loop {}
+}
+
 #[no_mangle]
 static mut __L0_TABLE: TranslationTable = TranslationTable::new();
-
 #[no_mangle]
 static mut __L1_TABLE: TranslationTable = TranslationTable::new();
 

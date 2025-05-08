@@ -4,9 +4,10 @@ use core::{
     ptr::{read_volatile, write_volatile},
 };
 
-pub struct UartPl011;
+#[allow(non_camel_case_types)]
+pub struct UART_PL011;
 
-impl UartPl011 {
+impl UART_PL011 {
     const UART0_BASE: u64 = 0xFFFF_0000_FE20_1000;
 
     // register offsets
@@ -38,9 +39,9 @@ impl UartPl011 {
     }
 }
 
-impl core::fmt::Write for UartPl011 {
+impl core::fmt::Write for UART_PL011 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        UartPl011::transmit_str(s);
+        UART_PL011::transmit_str(s);
         Ok(())
     }
 }
@@ -55,11 +56,11 @@ macro_rules! println {
 #[macro_export]
 macro_rules! print {
     ($($args:tt)*) => {
-        $crate::uart::_print(format_args!($($args)*))
+        $crate::devices::raspi::uart::_print(format_args!($($args)*))
     };
 }
 
-static UART: Mutex<UartPl011> = Mutex::new(UartPl011);
+pub static UART: Mutex<UART_PL011> = Mutex::new(UART_PL011);
 
 /// Helper function passed to print! macro
 pub fn _print(args: Arguments<'_>) {

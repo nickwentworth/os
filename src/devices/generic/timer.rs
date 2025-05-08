@@ -1,8 +1,8 @@
 use core::{arch::asm, time::Duration};
 
-pub struct HardwareTimer;
+pub struct ArmPhysTimer;
 
-impl HardwareTimer {
+impl ArmPhysTimer {
     const NANOS_PER_SEC: u128 = 1_000_000_000;
 
     /// Returns the duration of time that the kernel has been running for
