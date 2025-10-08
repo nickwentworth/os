@@ -23,11 +23,14 @@ impl<T> Mutex<T> {
     }
 
     pub fn lock(&self) -> Guard<T> {
-        while self
-            .lock
-            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_err()
-        {}
+        // TODO: now that scheduling is implemented, shared resources (like UART) can't
+        // be locked, or they will likely cause a deadlock
+
+        // while self
+        //     .lock
+        //     .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+        //     .is_err()
+        // {}
 
         Guard::new(self)
     }

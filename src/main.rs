@@ -4,15 +4,19 @@
 extern crate alloc;
 
 mod allocator;
+mod cpu;
 mod devices;
 mod exception;
 mod mutex;
 mod registers;
 
 use alloc::vec::Vec;
-use core::time::Duration;
-use devices::generic::{gic::GICv2, timer::ArmPhysTimer};
-use exception::irq::IRQ;
+use core::hint::spin_loop;
+
+use crate::{
+    cpu::{Cpu, Process},
+    exception::{branch_load_frame, frame::ExceptionFrame},
+};
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
@@ -37,17 +41,67 @@ pub extern "C" fn _kernel_main() -> ! {
     println!("Basic allocation test passed!");
 
     unsafe {
-        ArmPhysTimer::set_timer_interrupt(Duration::from_secs(3));
-        GICv2::init();
-        GICv2::enable_irq(IRQ::GenericPhysTimer);
-    }
+        let p1 = Process::init(test1);
+        let p2 = Process::init(test2);
+        let p3 = Process::init(test3);
 
-    loop {}
+        Cpu::me().lock().queue_process(p1);
+        Cpu::me().lock().queue_process(p2);
+        Cpu::me().lock().queue_process(p3);
+
+        Cpu::me().lock().start_scheduler();
+    }
+}
+
+fn test1() -> ! {
+    let mut i = 0u64;
+    loop {
+        println!("1: {i}");
+        for _ in 0..100000000 {
+            spin_loop();
+        }
+        i += 1;
+    }
+}
+
+fn test2() -> ! {
+    let mut i = 0u64;
+    loop {
+        println!("2: {i}");
+        for _ in 0..100000000 {
+            spin_loop();
+        }
+        i += 1;
+    }
+}
+
+fn test3() -> ! {
+    let mut i = 0u64;
+    loop {
+        println!("3: {i}");
+        for _ in 0..100000000 {
+            spin_loop();
+        }
+        i += 1;
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn _handle_exception(x0: u64) {
-    panic!("Got an exception! Origin/Type Data: {}", x0);
+pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) {
+    let frame = unsafe { x0.as_ref().unwrap() };
+
+    // println!("Got an exception! Data:\n{:?}", frame);
+
+    // TODO: still need to actually differentiate exception kinds/IRQs
+
+    // FIXME: getting an occasional panic from calling unwrap() on None
+
+    let mut cpu = Cpu::me().lock();
+
+    let next_process = cpu.next_process(frame as *const ExceptionFrame);
+    let next_process_sp = next_process.unwrap().sp();
+
+    unsafe { branch_load_frame(next_process_sp as *mut ExceptionFrame) };
 
     // TODO: we should normally return, but the test invalid memory
     // access would just cause us to keep raising exceptions forever
