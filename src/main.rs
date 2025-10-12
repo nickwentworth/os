@@ -4,9 +4,9 @@
 extern crate alloc;
 
 mod allocator;
-mod cpu;
 mod devices;
 mod exception;
+mod kernel;
 mod mutex;
 mod registers;
 
@@ -14,8 +14,9 @@ use alloc::vec::Vec;
 use core::hint::spin_loop;
 
 use crate::{
-    cpu::{Cpu, Process},
-    exception::{branch_load_frame, frame::ExceptionFrame},
+    devices::generic::gic::GICv2,
+    exception::{branch_load_frame, frame::ExceptionFrame, irq::IRQ},
+    kernel::{cpu::Cpu, process::Process},
 };
 
 #[no_mangle]
@@ -40,45 +41,32 @@ pub extern "C" fn _kernel_main() -> ! {
     }
     println!("Basic allocation test passed!");
 
+    let p1 = Process::init(test::<1>);
+    let p2 = Process::init(test::<2>);
+    let p3 = Process::init(test::<3>);
+
+    let mut cpu = Cpu::me().lock();
+    let scheduler = cpu.scheduler_mut();
+    scheduler.register_process(p1);
+    scheduler.register_process(p2);
+    scheduler.register_process(p3);
+
     unsafe {
-        let p1 = Process::init(test1);
-        let p2 = Process::init(test2);
-        let p3 = Process::init(test3);
+        // TODO: would be nice for this to be managed separately, lump
+        //       in set_timer_interrupt as well with it
+        GICv2::init();
+        GICv2::enable_irq(IRQ::GenericPhysTimer);
+    }
 
-        Cpu::me().lock().queue_process(p1);
-        Cpu::me().lock().queue_process(p2);
-        Cpu::me().lock().queue_process(p3);
-
-        Cpu::me().lock().start_scheduler();
+    unsafe {
+        scheduler.start();
     }
 }
 
-fn test1() -> ! {
+fn test<const X: usize>() -> ! {
     let mut i = 0u64;
     loop {
-        println!("1: {i}");
-        for _ in 0..100000000 {
-            spin_loop();
-        }
-        i += 1;
-    }
-}
-
-fn test2() -> ! {
-    let mut i = 0u64;
-    loop {
-        println!("2: {i}");
-        for _ in 0..100000000 {
-            spin_loop();
-        }
-        i += 1;
-    }
-}
-
-fn test3() -> ! {
-    let mut i = 0u64;
-    loop {
-        println!("3: {i}");
+        println!("{X}: {i}");
         for _ in 0..100000000 {
             spin_loop();
         }
@@ -94,11 +82,8 @@ pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) {
 
     // TODO: still need to actually differentiate exception kinds/IRQs
 
-    // FIXME: getting an occasional panic from calling unwrap() on None
-
     let mut cpu = Cpu::me().lock();
-
-    let next_process = cpu.next_process(frame as *const ExceptionFrame);
+    let next_process = cpu.scheduler_mut().next(frame as *const ExceptionFrame);
     let next_process_sp = next_process.unwrap().sp();
 
     unsafe { branch_load_frame(next_process_sp as *mut ExceptionFrame) };
