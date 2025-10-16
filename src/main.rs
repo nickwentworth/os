@@ -10,14 +10,13 @@ mod kernel;
 mod mutex;
 mod registers;
 
-use alloc::vec::Vec;
-use core::hint::spin_loop;
-
 use crate::{
     devices::generic::gic::GICv2,
     exception::{branch_load_frame, frame::ExceptionFrame, irq::IRQ},
     kernel::{cpu::Cpu, process::Process},
 };
+use alloc::vec::Vec;
+use core::{hint::spin_loop, ptr};
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
@@ -30,7 +29,7 @@ pub extern "C" fn _kernel_main() -> ! {
     allocator::init_global_allocator();
 
     // TODO: would be cool to have some way to easily test things, like cargo test
-    // lets test out the allocator
+    // test out the allocator
     let mut v = Vec::new();
     let size = 10000;
     for i in 0..size {
@@ -41,15 +40,16 @@ pub extern "C" fn _kernel_main() -> ! {
     }
     println!("Basic allocation test passed!");
 
-    let p1 = Process::init(test::<1>);
-    let p2 = Process::init(test::<2>);
-    let p3 = Process::init(test::<3>);
+    // initialize some test processes
+    let first_process_sp = {
+        let mut scheduler = Cpu::me().scheduler().lock();
+        scheduler.register_process(Process::init(test::<1>));
+        scheduler.register_process(Process::init(test::<2>));
+        scheduler.register_process(Process::init(test::<3>));
 
-    let mut cpu = Cpu::me().lock();
-    let scheduler = cpu.scheduler_mut();
-    scheduler.register_process(p1);
-    scheduler.register_process(p2);
-    scheduler.register_process(p3);
+        let first_process = scheduler.next(ptr::null());
+        first_process.unwrap().sp()
+    };
 
     unsafe {
         // TODO: would be nice for this to be managed separately, lump
@@ -58,16 +58,16 @@ pub extern "C" fn _kernel_main() -> ! {
         GICv2::enable_irq(IRQ::GenericPhysTimer);
     }
 
-    unsafe {
-        scheduler.start();
-    }
+    assert_eq!(Cpu::me().preempt_counter(), 0);
+
+    unsafe { branch_load_frame(first_process_sp as *mut ExceptionFrame) };
 }
 
 fn test<const X: usize>() -> ! {
     let mut i = 0u64;
     loop {
         println!("{X}: {i}");
-        for _ in 0..100000000 {
+        for _ in 0..100_000_000 {
             spin_loop();
         }
         i += 1;
@@ -82,9 +82,11 @@ pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) {
 
     // TODO: still need to actually differentiate exception kinds/IRQs
 
-    let mut cpu = Cpu::me().lock();
-    let next_process = cpu.scheduler_mut().next(frame as *const ExceptionFrame);
-    let next_process_sp = next_process.unwrap().sp();
+    let next_process_sp = {
+        let mut scheduler = Cpu::me().scheduler().lock();
+        let next_process = scheduler.next(frame as *const ExceptionFrame);
+        next_process.unwrap().sp()
+    };
 
     unsafe { branch_load_frame(next_process_sp as *mut ExceptionFrame) };
 

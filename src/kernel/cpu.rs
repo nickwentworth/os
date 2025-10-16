@@ -1,38 +1,55 @@
 use crate::{kernel::scheduler::Scheduler, mutex::Mutex};
-
-static CPU_ARR: [Mutex<Cpu>; 4] = {
-    [
-        Mutex::new(Cpu::new(0)),
-        Mutex::new(Cpu::new(1)),
-        Mutex::new(Cpu::new(2)),
-        Mutex::new(Cpu::new(3)),
-    ]
+use core::{
+    arch::asm,
+    sync::atomic::{AtomicU64, Ordering},
 };
+
+static CPU: Cpu = Cpu::new(0);
 
 pub struct Cpu {
     cpu_id: usize,
-    scheduler: Scheduler,
+    scheduler: Mutex<Scheduler>,
+    preempt_rc: AtomicU64,
 }
 
 impl Cpu {
     const fn new(cpu_id: usize) -> Self {
         Self {
             cpu_id,
-            scheduler: Scheduler::new(),
+            scheduler: Mutex::new(Scheduler::new()),
+            preempt_rc: AtomicU64::new(0),
         }
     }
 
-    pub fn me() -> &'static Mutex<Cpu> {
-        // TODO: fetch from system register
-        let cpu_id = 0;
-
-        CPU_ARR.get(cpu_id).unwrap()
+    pub fn me() -> &'static Cpu {
+        &CPU
     }
 
-    pub fn scheduler(&self) -> &Scheduler {
+    pub fn scheduler(&self) -> &Mutex<Scheduler> {
         &self.scheduler
     }
-    pub fn scheduler_mut(&mut self) -> &mut Scheduler {
-        &mut self.scheduler
+
+    pub fn preempt_counter(&self) -> u64 {
+        self.preempt_rc.load(Ordering::SeqCst)
+    }
+
+    pub fn increment_preempt_counter(&self) -> u64 {
+        let prev = self.preempt_rc.fetch_add(1, Ordering::SeqCst);
+
+        if prev == 0 {
+            unsafe { asm!("msr DAIFSET, #0b1111") }
+        }
+
+        prev + 1
+    }
+
+    pub fn decrement_preempt_counter(&self) -> u64 {
+        let prev = self.preempt_rc.fetch_sub(1, Ordering::SeqCst);
+
+        if prev == 1 {
+            unsafe { asm!("msr DAIFCLR, #0b1111") }
+        }
+
+        prev - 1
     }
 }

@@ -1,3 +1,4 @@
+use crate::kernel::cpu::Cpu;
 use core::{
     cell::UnsafeCell,
     ops::{Deref, DerefMut},
@@ -15,6 +16,8 @@ unsafe impl<T: Send> Send for Mutex<T> {}
 unsafe impl<T: Send> Sync for Mutex<T> {}
 
 impl<T> Mutex<T> {
+    const MAX_SPINS: u64 = 1_000_000_000;
+
     pub const fn new(obj: T) -> Self {
         Self {
             obj: UnsafeCell::new(obj),
@@ -22,21 +25,26 @@ impl<T> Mutex<T> {
         }
     }
 
-    pub fn lock(&self) -> Guard<T> {
-        // TODO: now that scheduling is implemented, shared resources (like UART) can't
-        // be locked, or they will likely cause a deadlock
+    pub fn lock(&'_ self) -> Guard<'_, T> {
+        let mut spins = 0;
 
-        // while self
-        //     .lock
-        //     .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-        //     .is_err()
-        // {}
+        while self
+            .lock
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            spins += 1;
+
+            if spins >= Self::MAX_SPINS {
+                panic!("Deadlock detected in spinlock mutex");
+            }
+        }
 
         Guard::new(self)
     }
 
     fn unlock(&self) {
-        self.lock.store(false, Ordering::Release);
+        self.lock.store(false, Ordering::SeqCst);
     }
 }
 
@@ -46,6 +54,7 @@ pub struct Guard<'a, T> {
 
 impl<'a, T> Guard<'a, T> {
     fn new(mutex: &'a Mutex<T>) -> Self {
+        Cpu::me().increment_preempt_counter();
         Self { mutex }
     }
 }
@@ -53,6 +62,7 @@ impl<'a, T> Guard<'a, T> {
 impl<'a, T> Drop for Guard<'a, T> {
     fn drop(&mut self) {
         self.mutex.unlock();
+        Cpu::me().decrement_preempt_counter();
     }
 }
 
