@@ -119,6 +119,10 @@ store_exception_frame:
     bl      _handle_exception
 
 _load_exception_frame:
+    // we're expecting _handle_exception to return the new sp
+    // which will be sitting in x0
+    mov     sp, x0
+
     // now restore registers from exception frame
     ldr     x0, [sp, #ELR_OFFSET]
     msr     ELR_EL1, x0

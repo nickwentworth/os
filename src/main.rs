@@ -12,11 +12,11 @@ mod registers;
 
 use crate::{
     devices::generic::gic::GICv2,
-    exception::{branch_load_frame, frame::ExceptionFrame, irq::IRQ},
-    kernel::{cpu::Cpu, process::Process},
+    exception::{frame::ExceptionFrame, irq::IRQ},
+    kernel::{cpu::Cpu, process::Process, scheduler::Scheduler},
 };
 use alloc::vec::Vec;
-use core::{hint::spin_loop, ptr};
+use core::hint::spin_loop;
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
@@ -41,15 +41,11 @@ pub extern "C" fn _kernel_main() -> ! {
     println!("Basic allocation test passed!");
 
     // initialize some test processes
-    let first_process_sp = {
-        let mut scheduler = Cpu::me().scheduler().lock();
-        scheduler.register_process(Process::init(test::<1>));
-        scheduler.register_process(Process::init(test::<2>));
-        scheduler.register_process(Process::init(test::<3>));
-
-        let first_process = scheduler.next(ptr::null());
-        first_process.unwrap().sp()
-    };
+    let mut scheduler = Cpu::me().scheduler().lock();
+    scheduler.register_process(Process::init(test::<1>));
+    scheduler.register_process(Process::init(test::<2>));
+    scheduler.register_process(Process::init(test::<3>));
+    drop(scheduler);
 
     unsafe {
         // TODO: would be nice for this to be managed separately, lump
@@ -60,7 +56,7 @@ pub extern "C" fn _kernel_main() -> ! {
 
     assert_eq!(Cpu::me().preempt_counter(), 0);
 
-    unsafe { branch_load_frame(first_process_sp as *mut ExceptionFrame) };
+    Scheduler::start();
 }
 
 fn test<const X: usize>() -> ! {
@@ -75,20 +71,14 @@ fn test<const X: usize>() -> ! {
 }
 
 #[no_mangle]
-pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) {
-    let frame = unsafe { x0.as_ref().unwrap() };
-
+pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) -> usize {
     // println!("Got an exception! Data:\n{:?}", frame);
 
     // TODO: still need to actually differentiate exception kinds/IRQs
 
-    let next_process_sp = {
-        let mut scheduler = Cpu::me().scheduler().lock();
-        let next_process = scheduler.next(frame as *const ExceptionFrame);
-        next_process.unwrap().sp()
-    };
-
-    unsafe { branch_load_frame(next_process_sp as *mut ExceptionFrame) };
+    let mut scheduler = Cpu::me().scheduler().lock();
+    let next_process = scheduler.next(x0);
+    next_process.unwrap().sp()
 
     // TODO: we should normally return, but the test invalid memory
     // access would just cause us to keep raising exceptions forever

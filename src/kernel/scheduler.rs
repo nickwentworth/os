@@ -1,10 +1,9 @@
 use crate::{
-    devices::generic::timer::ArmPhysTimer,
-    exception::{branch_load_frame, frame::ExceptionFrame},
+    devices::generic::timer::ArmPhysTimer, exception::frame::ExceptionFrame,
     kernel::process::Process,
 };
 use alloc::collections::vec_deque::VecDeque;
-use core::{ptr, time::Duration};
+use core::time::Duration;
 
 pub struct Scheduler {
     active_process: Option<Process>,
@@ -43,20 +42,16 @@ impl Scheduler {
         self.active_process.as_ref()
     }
 
-    /// Start this scheduler, which loads and runs the first `Process` in its run queue.
+    /// Start this CPU's scheduler, which effectively sets an immediate timer interrupt and waits
+    /// for it to fire.
     ///
     /// ### Safety
     /// This marks the end of the kernel initialization phase and should be called just once per CPU.
     ///
-    /// Panics if no `Process` was registered via `Self::register_process()`, as there
-    /// would be nothing to do
-    pub unsafe fn start(&mut self) -> ! {
-        let initial_process = self
-            .next(ptr::null())
-            .expect("No processes were scheduled!");
-
-        ArmPhysTimer::set_timer_interrupt(Self::PREEMPT_RATE);
-
-        branch_load_frame(initial_process.sp as *mut ExceptionFrame);
+    /// Doesn't immediately, but will soon panic if no `Proceess` was registered via
+    /// `Scheduler::register_process()`
+    pub fn start() -> ! {
+        ArmPhysTimer::set_timer_interrupt(Duration::ZERO);
+        loop {}
     }
 }
