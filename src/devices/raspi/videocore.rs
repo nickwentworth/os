@@ -1,6 +1,32 @@
 use crate::println;
 use core::ptr::{read_volatile, write_volatile};
 
+#[repr(align(256))]
+struct AlignedBuffer<const N: usize>([u32; N]);
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum PixelOrder {
+    BGR,
+    RGB,
+}
+
+impl PixelOrder {
+    fn to_state(self) -> u32 {
+        match self {
+            Self::BGR => 0,
+            Self::RGB => 1,
+        }
+    }
+
+    fn from_state(state: u32) -> Self {
+        match state {
+            0 => Self::BGR,
+            1 => Self::RGB,
+            _ => panic!(""),
+        }
+    }
+}
+
 pub struct VideoCore {}
 
 impl VideoCore {
@@ -24,8 +50,8 @@ impl VideoCore {
         (res[0], res[1])
     }
 
-    pub fn get_virtual_buffer_dimensions() -> (u32, u32) {
-        let res = Self::mailbox_call::<0, 2>(0x00040004, []);
+    pub fn set_display_dimensions(width: u32, height: u32) -> (u32, u32) {
+        let res = Self::mailbox_call::<2, 2>(0x00048003, [width, height]);
         (res[0], res[1])
     }
 
@@ -34,9 +60,27 @@ impl VideoCore {
         res[0]
     }
 
-    pub fn allocate_frame_buffer() -> (u32, u32) {
+    pub fn set_depth(bits_per_pixel: u32) -> u32 {
+        let res = Self::mailbox_call::<1, 1>(0x00048005, [bits_per_pixel]);
+        res[0]
+    }
+
+    pub fn get_pixel_order() -> PixelOrder {
+        let res = Self::mailbox_call::<0, 1>(0x00040006, []);
+        PixelOrder::from_state(res[0])
+    }
+
+    pub fn set_pixel_order(order: PixelOrder) -> PixelOrder {
+        let state = order.to_state();
+        let res = Self::mailbox_call::<1, 1>(0x00048006, [state]);
+        PixelOrder::from_state(res[0])
+    }
+
+    pub fn allocate_frame_buffer() -> (usize, usize) {
         let res = Self::mailbox_call::<1, 2>(0x00040001, [4096]);
-        (res[0], res[1])
+
+        let virt_base_addr = res[0] as usize | 0xFFFF_0000_0000_0000;
+        (virt_base_addr, res[1] as usize)
     }
 
     const fn max(a: usize, b: usize) -> usize {
@@ -58,7 +102,8 @@ impl VideoCore {
         //       #[repr(align(16))] also isn't aligning it, so we may need
         //       to implement proper alignment in allocator, then allocate it there?
 
-        let mut buf = [0; 6 + Self::max(REQ_LEN, RES_LEN)];
+        let mut aligned_buf = AlignedBuffer([0; 6 + Self::max(REQ_LEN, RES_LEN)]);
+        let buf = &mut aligned_buf.0;
 
         buf[0] = buf.len() as u32 * 4;
         buf[1] = 0; // full mailbox status code
@@ -74,19 +119,19 @@ impl VideoCore {
         buf[buf.len() - 1] = 0; // end tag
 
         let buf_addr = buf.get(0).unwrap() as *const u32 as u32;
-        println!("Buffer addr: 0x{:x}", buf_addr);
+        // println!("Buffer addr: 0x{:x}", buf_addr);
 
         let masked_addr = (buf_addr & !0b1111) | 0b1000;
         unsafe { Self::write_mailbox(masked_addr) }
 
         let resp_addr = unsafe { Self::read_mailbox() };
-        println!("Response addr: 0x{:x}", resp_addr);
+        // println!("Response addr: 0x{:x}", resp_addr);
 
-        println!("{:?}", buf);
-        println!("{:x?}", buf);
+        // println!("{:?}", buf);
+        // println!("{:x?}", buf);
 
         let resp_code = buf[1];
-        println!("Response code: 0x{:x}", resp_code);
+        // println!("Response code: 0x{:x}", resp_code);
 
         let mut response = [0u32; RES_LEN];
         for i in 0..RES_LEN {
@@ -96,17 +141,13 @@ impl VideoCore {
     }
 
     unsafe fn write_mailbox(value: u32) {
-        while Self::read_reg(Self::VC_STATUS) & Self::MAILBOX_FULL != 0 {
-            println!("ASDF");
-        }
+        while Self::read_reg(Self::VC_STATUS) & Self::MAILBOX_FULL != 0 {}
         Self::write_reg(Self::VC_WRITE, value);
     }
 
     unsafe fn read_mailbox() -> u32 {
         loop {
-            while Self::read_reg(Self::VC_STATUS) & Self::MAILBOX_EMPTY != 0 {
-                println!("ASDF");
-            }
+            while Self::read_reg(Self::VC_STATUS) & Self::MAILBOX_EMPTY != 0 {}
             let val = Self::read_reg(Self::VC_READ);
             if val & 0xF == 8 {
                 return val & !0xF;

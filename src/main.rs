@@ -7,12 +7,13 @@ extern crate alloc;
 mod allocator;
 mod devices;
 mod exception;
+mod graphics;
 mod kernel;
 mod mutex;
 mod registers;
 
 use crate::{
-    devices::{generic::gic::GICv2, raspi::videocore::VideoCore},
+    devices::generic::gic::GICv2,
     exception::{frame::ExceptionFrame, irq::IRQ},
     kernel::{cpu::Cpu, process::Process, scheduler::Scheduler},
 };
@@ -41,32 +42,7 @@ pub extern "C" fn _kernel_main() -> ! {
     }
     println!("Basic allocation test passed!");
 
-    println!("\n\n-----\n\n");
-    println!(
-        "VideoCore firmware version: 0x{:x}",
-        VideoCore::get_firmware_version()
-    );
-
-    let phys_dims = VideoCore::get_display_dimensions();
-    println!("Physical display: {} x {}", phys_dims.0, phys_dims.1);
-
-    let depth = VideoCore::get_depth();
-    println!("Bits per pixel: {}", depth);
-
-    let virt_dims = VideoCore::get_virtual_buffer_dimensions();
-    println!("Virtual buffer: {} x {}", virt_dims.0, virt_dims.1);
-
-    println!("\n\n-----\n\n");
-    let buf_data = VideoCore::allocate_frame_buffer();
-    println!(
-        "Allocated frame buffer at: 0x{:x}, spanning {} bytes",
-        buf_data.0, buf_data.1
-    );
-
-    let buf_start = (buf_data.0 as usize | 0xFFFF_0000_0000_0000) as *mut u8;
-    unsafe {
-        buf_start.write_bytes(0xF0, buf_data.1 as usize);
-    }
+    graphics::init_graphics();
 
     // initialize some test processes
     let mut scheduler = Cpu::me().scheduler().lock();
