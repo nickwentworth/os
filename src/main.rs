@@ -11,6 +11,7 @@ mod graphics;
 mod kernel;
 mod mutex;
 mod registers;
+mod util;
 
 use crate::{
     devices::generic::gic::GICv2,

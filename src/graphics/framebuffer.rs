@@ -1,4 +1,11 @@
-use crate::graphics::color::Color;
+use crate::{
+    graphics::{color::Color, framebuffer},
+    util::rect::Rect,
+};
+
+pub trait Drawable {
+    fn draw(&self, buf: &mut FrameBufferView);
+}
 
 pub struct FrameBuffer {
     base_addr: *mut u8,
@@ -24,12 +31,27 @@ impl FrameBuffer {
         }
     }
 
-    pub fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
-        let idx = y * self.width + x;
+    pub fn view(&'_ self, bounds: Rect) -> FrameBufferView<'_> {
+        FrameBufferView {
+            framebuffer: &self,
+            bounds: bounds,
+        }
+    }
+}
 
-        match self.color_mode {
+pub struct FrameBufferView<'a> {
+    framebuffer: &'a FrameBuffer,
+    bounds: Rect,
+}
+
+impl FrameBufferView<'_> {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
+        let idx = y * self.framebuffer.width + x;
+
+        match self.framebuffer.color_mode {
             ColorMode::Rgb32 => unsafe {
-                self.base_addr
+                self.framebuffer
+                    .base_addr
                     .cast::<u32>()
                     .add(idx)
                     .write(color.to_u32_be());
@@ -38,10 +60,8 @@ impl FrameBuffer {
     }
 
     pub fn fill(&mut self, color: Color) {
-        for x in 0..self.width {
-            for y in 0..self.height {
-                self.set_pixel(x, y, color);
-            }
+        for (x, y) in self.bounds.points() {
+            self.set_pixel(x, y, color);
         }
     }
 }

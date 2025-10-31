@@ -1,10 +1,13 @@
 pub mod color;
 pub mod framebuffer;
+pub mod graphics;
+pub mod window;
 
 use crate::{
     devices::raspi::videocore::{PixelOrder, VideoCore},
-    graphics::{color::Color, framebuffer::FrameBuffer},
+    graphics::{color::Color, framebuffer::FrameBuffer, graphics::Graphics, window::Window},
     println,
+    util::rect::Rect,
 };
 
 pub fn init_graphics() {
@@ -36,16 +39,24 @@ pub fn init_graphics() {
 
     println!("Graphics initialized!");
 
-    let mut framebuffer =
-        FrameBuffer::new(buf_base, width as usize, height as usize, depth as usize);
+    let framebuffer = FrameBuffer::new(buf_base, width as usize, height as usize, depth as usize);
 
-    for r in 0..255 {
-        for g in 0..255 {
-            for b in 0..255 {
-                let c = Color::rgb(r, g, b);
-                println!("{}", c);
-                framebuffer.fill(c);
-            }
-        }
-    }
+    let mut graphics = Graphics::new(framebuffer);
+    graphics.register_window(Window::new(Rect::new(0, 0, 200, 200), Color::RED));
+    graphics.register_window(Window::new(Rect::new(100, 100, 300, 200), Color::GREEN));
+    graphics.register_window(Window::new(Rect::new(100, 50, 300, 150), Color::BLUE));
+
+    graphics.draw_frame();
+
+    loop {}
+
+    // for r in 0..255 {
+    //     for g in 0..255 {
+    //         for b in 0..255 {
+    //             let c = Color::rgb(r, g, b);
+    //             println!("{}", c);
+    //             framebuffer.fill(c);
+    //         }
+    //     }
+    // }
 }
