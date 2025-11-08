@@ -4,8 +4,6 @@ use core::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-static CPU: Cpu = Cpu::new(0);
-
 pub struct Cpu {
     cpu_id: usize,
     scheduler: Mutex<Scheduler>,
@@ -13,16 +11,12 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    const fn new(cpu_id: usize) -> Self {
+    pub const fn new(cpu_id: usize) -> Self {
         Self {
             cpu_id,
             scheduler: Mutex::new(Scheduler::new()),
             preempt_rc: AtomicU64::new(0),
         }
-    }
-
-    pub fn me() -> &'static Cpu {
-        &CPU
     }
 
     pub fn scheduler(&self) -> &Mutex<Scheduler> {

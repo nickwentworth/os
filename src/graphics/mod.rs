@@ -48,8 +48,6 @@ pub fn init_graphics() {
 
     graphics.draw_frame();
 
-    loop {}
-
     // for r in 0..255 {
     //     for g in 0..255 {
     //         for b in 0..255 {

@@ -1,31 +1,6 @@
-use crate::{mutex::Mutex, println};
-use core::{alloc::GlobalAlloc, ptr::null_mut};
+use core::ptr;
 
-type LockedLLA = Mutex<Option<LinkedListAllocator>>;
-
-#[global_allocator]
-static ALLOCATOR: LockedLLA = Mutex::new(None);
-
-const HEAP_START: *mut u8 = 0xFFFF_0000_4000_0000 as *mut u8;
-const HEAP_SIZE: usize = 1024 * 1024;
-
-pub fn init_global_allocator() {
-    println!("Initializing kernel heap...");
-
-    let mut guard = ALLOCATOR.lock();
-
-    match guard.as_ref() {
-        Some(_) => println!("Kernel already initialized!"),
-        None => {
-            let mut allocator = LinkedListAllocator::new(HEAP_START, HEAP_SIZE);
-            unsafe { allocator.init() };
-            *guard = Some(allocator);
-            println!("Kernel heap initialized!");
-        }
-    }
-}
-
-struct LinkedListAllocator {
+pub struct LinkedListAllocator {
     heap_start: *mut u8,
     heap_size: usize,
     free_head: *mut FreeNode,
@@ -35,34 +10,22 @@ struct LinkedListAllocator {
 unsafe impl Send for LinkedListAllocator {}
 
 impl LinkedListAllocator {
-    /// Create a new `LinkedListAllocator`, specifying an area for the heap
-    fn new(heap_start: *mut u8, heap_size: usize) -> Self {
+    pub unsafe fn new(heap_start: *mut u8, heap_size: usize) -> Self {
+        let free_head = FreeNode::new(heap_size, ptr::null_mut());
+        heap_start.cast::<FreeNode>().write(free_head);
+
         Self {
             heap_start,
             heap_size,
-            free_head: null_mut(),
+            free_head: heap_start.cast(),
         }
     }
 
-    /// Initialize the area of memory to be used
-    ///
-    /// This initialization involves direct writing to a given pointer,
-    /// so this function should only be called once per allocator
-    unsafe fn init(&mut self) {
-        let free_head = FreeNode::new(self.heap_size, null_mut());
-        self.heap_start.cast::<FreeNode>().write(free_head);
-        self.free_head = self.heap_start.cast();
-    }
-}
+    // TODO: improve alloac/dealloc to actually honor layout things, like alignment
 
-unsafe impl GlobalAlloc for LockedLLA {
-    unsafe fn alloc(&self, layout: core::alloc::Layout) -> *mut u8 {
-        let mut guard = self.lock();
-        let allocator = guard.as_mut().expect("Allocator was not initialized");
-        println!("Allocating {} bytes", layout.size());
-
-        let mut prev = null_mut::<FreeNode>();
-        let mut curr = allocator.free_head;
+    pub unsafe fn alloc(&mut self, layout: core::alloc::Layout) -> Result<*mut u8, &'static str> {
+        let mut prev = ptr::null_mut::<FreeNode>();
+        let mut curr = self.free_head;
 
         while !curr.is_null() {
             let node = curr.as_ref().unwrap();
@@ -76,32 +39,26 @@ unsafe impl GlobalAlloc for LockedLLA {
 
                 if prev.is_null() {
                     // this is the first iteration, so curr is the allocator's head node
-                    allocator.free_head = next_ptr;
+                    self.free_head = next_ptr;
                 } else {
                     prev.as_mut().unwrap().next = next_ptr;
                 }
 
-                return curr.cast();
+                return Ok(curr.cast());
             } else {
                 prev = curr;
                 curr = node.next;
             }
         }
 
-        panic!("No free regions large enough to fit allocation!");
+        Err("No free regions large enough to fit allocation!")
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
-        let mut guard = self.lock();
-        let allocator = guard.as_mut().expect("Allocator was not initialized");
-        println!("Deallocating {} bytes", layout.size());
-
+    pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: core::alloc::Layout) {
         // write a free chunk to the given address, pointing to the existing allocator's head
-        let node = FreeNode::new(layout.size(), allocator.free_head);
+        let node = FreeNode::new(layout.size(), self.free_head);
         ptr.cast::<FreeNode>().write(node);
-        allocator.free_head = ptr.cast::<FreeNode>();
-
-        // TODO: look to combine free regions if memory directly after ptr is also free
+        self.free_head = ptr.cast::<FreeNode>();
     }
 }
 

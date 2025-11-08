@@ -1,4 +1,4 @@
-use crate::kernel::cpu::Cpu;
+use crate::kernel::get_kernel;
 use core::{
     cell::UnsafeCell,
     ops::{Deref, DerefMut},
@@ -54,7 +54,7 @@ pub struct Guard<'a, T> {
 
 impl<'a, T> Guard<'a, T> {
     fn new(mutex: &'a Mutex<T>) -> Self {
-        Cpu::me().increment_preempt_counter();
+        get_kernel().cpu_me().increment_preempt_counter();
         Self { mutex }
     }
 }
@@ -62,7 +62,7 @@ impl<'a, T> Guard<'a, T> {
 impl<'a, T> Drop for Guard<'a, T> {
     fn drop(&mut self) {
         self.mutex.unlock();
-        Cpu::me().decrement_preempt_counter();
+        get_kernel().cpu_me().decrement_preempt_counter();
     }
 }
 

@@ -16,7 +16,7 @@ mod util;
 use crate::{
     devices::generic::gic::GICv2,
     exception::{frame::ExceptionFrame, irq::IRQ},
-    kernel::{cpu::Cpu, process::Process, scheduler::Scheduler},
+    kernel::{get_kernel, init_kernel, process::Process, scheduler::Scheduler},
 };
 use alloc::vec::Vec;
 use core::hint::spin_loop;
@@ -29,7 +29,7 @@ pub extern "C" fn _kernel_main() -> ! {
         println!("Entering kernel at EL{}", (el >> 2) & 0b11);
     }
 
-    allocator::init_global_allocator();
+    unsafe { init_kernel() };
 
     // TODO: would be cool to have some way to easily test things, like cargo test
     // test out the allocator
@@ -46,7 +46,7 @@ pub extern "C" fn _kernel_main() -> ! {
     graphics::init_graphics();
 
     // initialize some test processes
-    let mut scheduler = Cpu::me().scheduler().lock();
+    let mut scheduler = get_kernel().cpu_me().scheduler().lock();
     scheduler.register_process(Process::init(test::<1>));
     scheduler.register_process(Process::init(test::<2>));
     scheduler.register_process(Process::init(test::<3>));
@@ -59,7 +59,7 @@ pub extern "C" fn _kernel_main() -> ! {
         GICv2::enable_irq(IRQ::GenericPhysTimer);
     }
 
-    assert_eq!(Cpu::me().preempt_counter(), 0);
+    assert_eq!(get_kernel().cpu_me().preempt_counter(), 0);
 
     Scheduler::start();
 }
@@ -81,7 +81,7 @@ pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) -> usize {
 
     // TODO: still need to actually differentiate exception kinds/IRQs
 
-    let mut scheduler = Cpu::me().scheduler().lock();
+    let mut scheduler = get_kernel().cpu_me().scheduler().lock();
     let next_process = scheduler.next(x0);
     next_process.unwrap().sp()
 
