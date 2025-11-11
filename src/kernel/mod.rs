@@ -1,4 +1,5 @@
 use crate::kernel::kernel::Kernel;
+use core::fmt::Write;
 
 pub mod cpu;
 pub mod kernel;
@@ -14,4 +15,26 @@ pub unsafe fn init_kernel() {
 
 pub fn get_kernel() -> &'static Kernel {
     &KERNEL
+}
+
+#[macro_export]
+macro_rules! println {
+    ($($args:tt)*) => {
+        $crate::print!("{}\n", format_args!($($args)*))
+    };
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($args:tt)*) => {
+        $crate::kernel::_print(format_args!($($args)*))
+    };
+}
+
+pub fn _print(args: core::fmt::Arguments<'_>) {
+    get_kernel()
+        .get_serial()
+        .lock()
+        .get_mut()
+        .map(|controller| controller.write_fmt(args));
 }
