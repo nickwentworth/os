@@ -1,8 +1,8 @@
-use core::ptr;
+use crate::{mem::addr::KernelVirtAddr, println};
+use core::{ptr, slice};
 
 pub struct LinkedListAllocator {
-    heap_start: *mut u8,
-    heap_size: usize,
+    heap: &'static [u8],
     free_head: *mut FreeNode,
 }
 
@@ -10,14 +10,17 @@ pub struct LinkedListAllocator {
 unsafe impl Send for LinkedListAllocator {}
 
 impl LinkedListAllocator {
-    pub unsafe fn new(heap_start: *mut u8, heap_size: usize) -> Self {
+    pub unsafe fn new(heap_start: KernelVirtAddr, heap_size: usize) -> Self {
+        let heap = slice::from_raw_parts_mut(heap_start.to_ptr(), heap_size);
+
         let free_head = FreeNode::new(heap_size, ptr::null_mut());
-        heap_start.cast::<FreeNode>().write(free_head);
+
+        let free_head_ptr = heap.as_mut_ptr().cast::<FreeNode>();
+        free_head_ptr.write(free_head);
 
         Self {
-            heap_start,
-            heap_size,
-            free_head: heap_start.cast(),
+            heap,
+            free_head: free_head_ptr,
         }
     }
 

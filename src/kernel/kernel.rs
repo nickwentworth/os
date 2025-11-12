@@ -2,10 +2,11 @@ use crate::{
     allocator::LinkedListAllocator,
     devices::generic::uart::{UartController, UartPl011},
     kernel::cpu::Cpu,
+    mem::addr::PhysAddr,
     mutex::Mutex,
     println,
 };
-use core::{alloc::GlobalAlloc, cell::OnceCell};
+use core::{alloc::GlobalAlloc, cell::OnceCell, fmt::Write};
 
 pub struct Kernel {
     cpus: [Cpu; 4],
@@ -22,10 +23,10 @@ impl Kernel {
         }
     }
 
-    const HEAP_START: *mut u8 = 0xFFFF_0000_4000_0000 as *mut u8;
+    const HEAP_START: PhysAddr = PhysAddr::new(0x4000_0000);
     const HEAP_SIZE: usize = 1024 * 1024;
 
-    const UART0_BASE: *mut u8 = 0xFFFF_0000_FE20_1000 as *mut u8;
+    const UART0_BASE: PhysAddr = PhysAddr::new(0xFE20_1000);
 
     pub fn init(&self) {
         let uart_driver = UartPl011::new(Self::UART0_BASE.into());
@@ -33,7 +34,8 @@ impl Kernel {
         uart_controller.init();
         self.serial.lock().set(uart_controller);
 
-        let allocator = unsafe { LinkedListAllocator::new(Self::HEAP_START, Self::HEAP_SIZE) };
+        let allocator =
+            unsafe { LinkedListAllocator::new(Self::HEAP_START.into(), Self::HEAP_SIZE) };
         self.allocator
             .lock()
             .set(allocator)
@@ -45,9 +47,12 @@ impl Kernel {
         &self.cpus[cpu_idx]
     }
 
-    // TODO: this method feels a bit messy, like its leaking some extra implementation details...
-    pub fn get_serial(&self) -> &Mutex<OnceCell<UartController>> {
-        &self.serial
+    pub fn serial_write_fmt(&self, args: core::fmt::Arguments) -> core::fmt::Result {
+        self.serial
+            .lock()
+            .get_mut()
+            .ok_or(core::fmt::Error)?
+            .write_fmt(args)
     }
 }
 

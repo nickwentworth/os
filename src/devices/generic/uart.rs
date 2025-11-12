@@ -1,4 +1,4 @@
-use crate::devices::MmioDevice;
+use crate::{devices::MmioDevice, mem::addr::KernelVirtAddr};
 
 pub struct UartController {
     driver: UartPl011,
@@ -39,7 +39,7 @@ impl core::fmt::Write for UartController {
 }
 
 pub struct UartPl011 {
-    base_addr: *mut u8,
+    base_addr: KernelVirtAddr,
 }
 
 struct UartPl011Config {
@@ -72,7 +72,7 @@ impl UartPl011 {
     const UART_CR_TXE: u8 = 8; // Transmit enable
     const UART_CR_UARTEN: u8 = 0; // UART enable
 
-    pub fn new(base_addr: *mut u8) -> Self {
+    pub fn new(base_addr: KernelVirtAddr) -> Self {
         Self { base_addr }
     }
 
@@ -121,6 +121,6 @@ impl UartPl011 {
 
 unsafe impl MmioDevice for UartPl011 {
     fn base_addr(&self) -> *mut u32 {
-        self.base_addr.cast()
+        self.base_addr.to_ptr().cast()
     }
 }

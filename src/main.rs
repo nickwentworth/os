@@ -9,6 +9,7 @@ mod devices;
 mod exception;
 mod graphics;
 mod kernel;
+mod mem;
 mod mutex;
 mod registers;
 mod util;

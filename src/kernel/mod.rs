@@ -1,5 +1,4 @@
 use crate::kernel::kernel::Kernel;
-use core::fmt::Write;
 
 pub mod cpu;
 pub mod kernel;
@@ -32,9 +31,6 @@ macro_rules! print {
 }
 
 pub fn _print(args: core::fmt::Arguments<'_>) {
-    get_kernel()
-        .get_serial()
-        .lock()
-        .get_mut()
-        .map(|controller| controller.write_fmt(args));
+    // TODO: should anything be done if this returns an Err?
+    let _ = get_kernel().serial_write_fmt(args);
 }
