@@ -1,10 +1,10 @@
 use crate::{devices::MmioDevice, mem::addr::KernelVirtAddr};
 
+/// Helper controller struct to setup and use the PrimeCell UART PL011.
+/// Exposes higher level methods for direct use by the kernel.
 pub struct UartController {
     driver: UartPl011,
 }
-
-unsafe impl Send for UartController {}
 
 impl UartController {
     pub fn new(driver: UartPl011) -> Self {
@@ -28,7 +28,7 @@ impl UartController {
 
     pub fn receieve_char(&mut self) -> char {
         self.driver.set_mode(UartPl011Mode::Transmit);
-        self.driver.receieve_char()
+        self.driver.receieve_byte().into()
     }
 }
 
@@ -38,19 +38,32 @@ impl core::fmt::Write for UartController {
     }
 }
 
+/// Driver for the PrimeCell UART PL011. Enables basic functions,
+/// including transmitting and receiving characters.
+///
+/// ### Resources
+/// https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5
 pub struct UartPl011 {
     base_addr: KernelVirtAddr,
 }
 
+/// Configuration helper for the UART
 struct UartPl011Config {
     enabled: bool,
     mode: UartPl011Mode,
 }
 
+/// Describes operation mode of the UART
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum UartPl011Mode {
     Transmit,
     Receive,
+}
+
+unsafe impl MmioDevice for UartPl011 {
+    fn base_addr(&self) -> *mut u32 {
+        self.base_addr.to_ptr().cast()
+    }
 }
 
 impl UartPl011 {
@@ -102,25 +115,16 @@ impl UartPl011 {
 
     fn transmit_byte(&mut self, byte: u8) {
         while self.is_busy() {}
-
         self.write(Self::UART_DR, byte.into());
     }
 
-    fn receieve_char(&self) -> char {
+    fn receieve_byte(&self) -> u8 {
         while self.is_busy() {}
-
-        let data = self.read(Self::UART_DR);
-        data as u8 as char
+        self.read(Self::UART_DR) as u8
     }
 
     fn is_busy(&self) -> bool {
         let fr = self.read(Self::UART_FR);
         fr & (1 << Self::UART_FR_BUSY) != 0
-    }
-}
-
-unsafe impl MmioDevice for UartPl011 {
-    fn base_addr(&self) -> *mut u32 {
-        self.base_addr.to_ptr().cast()
     }
 }
