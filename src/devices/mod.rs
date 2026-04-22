@@ -1,6 +1,10 @@
 pub mod generic;
 pub mod raspi;
 
+pub trait Device {
+    fn name(&self) -> &str;
+}
+
 pub unsafe trait MmioDevice {
     fn base_addr(&self) -> *mut u32;
 

@@ -1,6 +1,6 @@
 use crate::{
     allocator::LinkedListAllocator,
-    devices::generic::uart::{UartController, UartPl011},
+    devices::generic::uart::{UartPl011, UartPl011Device},
     kernel::cpu::Cpu,
     mem::addr::PhysAddr,
     mutex::Mutex,
@@ -11,7 +11,7 @@ use core::{alloc::GlobalAlloc, cell::OnceCell, fmt::Write};
 pub struct Kernel {
     cpus: [Cpu; 4],
     allocator: Mutex<OnceCell<LinkedListAllocator>>,
-    serial: Mutex<OnceCell<UartController>>,
+    serial: Mutex<OnceCell<UartPl011>>,
 }
 
 impl Kernel {
@@ -29,10 +29,10 @@ impl Kernel {
     const UART0_BASE: PhysAddr = PhysAddr::new(0xFE20_1000);
 
     pub fn init(&self) {
-        let uart_driver = UartPl011::new(Self::UART0_BASE.into());
-        let mut uart_controller = UartController::new(uart_driver);
-        uart_controller.init();
-        self.serial.lock().set(uart_controller);
+        let uart_device = UartPl011Device::new(Self::UART0_BASE.into());
+        let mut uart = UartPl011::bind(uart_device);
+        uart.init();
+        self.serial.lock().set(uart);
 
         let allocator =
             unsafe { LinkedListAllocator::new(Self::HEAP_START.into(), Self::HEAP_SIZE) };
