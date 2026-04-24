@@ -10,12 +10,12 @@ pub unsafe trait MmioDevice {
 
     /// Read 32 bits from this device's base, at a given offset
     fn read(&self, offset: usize) -> u32 {
-        unsafe { self.base_addr().byte_add(offset / 8).read_volatile() }
+        unsafe { self.base_addr().byte_add(offset).read_volatile() }
     }
 
     /// Writes 32 bits from this device's base, at a given offset
     fn write(&mut self, offset: usize, data: u32) {
-        unsafe { self.base_addr().byte_add(offset / 8).write_volatile(data) };
+        unsafe { self.base_addr().byte_add(offset).write_volatile(data) };
     }
 
     /// Set the given range of bits from `msb` to `lsb` (both inclusize) to `1`.

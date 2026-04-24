@@ -23,15 +23,15 @@ impl Kernel {
         }
     }
 
-    const HEAP_START: PhysAddr = PhysAddr::new(0x4000_0000);
+    const HEAP_START: PhysAddr = PhysAddr::new(0x5000_0000);
     const HEAP_SIZE: usize = 1024 * 1024;
 
-    const UART0_BASE: PhysAddr = PhysAddr::new(0xFE20_1000);
+    const UART0_BASE: PhysAddr = PhysAddr::new(0x0900_0000);
 
     pub fn init(&self) {
         let uart_device = UartPl011Device::new(Self::UART0_BASE.into());
-        let mut uart = UartPl011::bind(uart_device);
-        uart.init();
+        let uart = UartPl011::bind(uart_device);
+        // uart.init();
         self.serial.lock().set(uart);
 
         let allocator =

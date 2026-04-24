@@ -1,4 +1,4 @@
-__kernel_phys_start_addr = 0x80000;
+__kernel_phys_start_addr = 0x40080000;
 __kernel_virt_start_addr = 0xFFFF000000000000 + __kernel_phys_start_addr;
 
 ENTRY(_start)

@@ -3,14 +3,17 @@ use crate::exception::irq::IRQ;
 pub struct GICv2;
 
 impl GICv2 {
-    const GIC_BASE: u64 = 0xFFFF_0000_FF84_0000;
+    // TODO: adapt this to use MmioDevice, Driver, etc
+
+    // const GIC_BASE: u64 = 0xFFFF_0000_FF84_0000;
+    const GIC_BASE: u64 = 0xFFFF_0000_0800_0000;
 
     // register offsets
-    const GICD: usize = 0x1000;
+    const GICD: usize = 0x0;
     const GICD_CTLR: usize = Self::GICD;
     const GICD_ISENABLER_BASE: usize = Self::GICD + 0x100;
 
-    const GICC: usize = 0x2000;
+    const GICC: usize = 0x10000;
     const GICC_CTLR: usize = Self::GICC;
     const GICC_PMR: usize = Self::GICC + 0x4;
 

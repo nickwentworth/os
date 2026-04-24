@@ -24,11 +24,11 @@ use core::hint::spin_loop;
 
 #[no_mangle]
 pub extern "C" fn _kernel_main() -> ! {
-    unsafe {
-        let mut el: u64;
-        core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
-        println!("Entering kernel at EL{}", (el >> 2) & 0b11);
-    }
+    // unsafe {
+    //     let mut el: u64;
+    //     core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
+    //     println!("Entering kernel at EL{}", (el >> 2) & 0b11);
+    // }
 
     unsafe { init_kernel() };
 
@@ -44,7 +44,7 @@ pub extern "C" fn _kernel_main() -> ! {
     }
     println!("Basic allocation test passed!");
 
-    graphics::init_graphics();
+    // graphics::init_graphics();
 
     // initialize some test processes
     let mut scheduler = get_kernel().cpu_me().scheduler().lock();
@@ -69,7 +69,7 @@ fn test<const X: usize>() -> ! {
     let mut i = 0u64;
     loop {
         println!("{X}: {i}");
-        for _ in 0..100_000_000 {
+        for _ in 0..10_000_000 {
             spin_loop();
         }
         i += 1;
