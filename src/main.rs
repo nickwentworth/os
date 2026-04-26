@@ -18,12 +18,13 @@ use crate::{
     devices::generic::gic::GICv2,
     exception::{frame::ExceptionFrame, irq::IRQ},
     kernel::{get_kernel, init_kernel, process::Process, scheduler::Scheduler},
+    mem::addr::{KernelVirtAddr, PhysAddr},
 };
 use alloc::vec::Vec;
 use core::hint::spin_loop;
 
 #[no_mangle]
-pub extern "C" fn _kernel_main() -> ! {
+pub extern "C" fn _kernel_main(x0: usize) -> ! {
     // unsafe {
     //     let mut el: u64;
     //     core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
@@ -31,6 +32,13 @@ pub extern "C" fn _kernel_main() -> ! {
     // }
 
     unsafe { init_kernel() };
+
+    let dtb_virt = KernelVirtAddr::from(PhysAddr::new(x0));
+    let dtb_magic = unsafe { *(dtb_virt.to_ptr().cast::<u32>()) };
+    println!(
+        "DTB phys={:#x} magic={:#x} (expect 0xedfe0dd0)",
+        x0, dtb_magic
+    );
 
     // TODO: would be cool to have some way to easily test things, like cargo test
     // test out the allocator
