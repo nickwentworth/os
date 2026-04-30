@@ -18,13 +18,17 @@ use crate::{
     devices::generic::gic::GICv2,
     exception::{frame::ExceptionFrame, irq::IRQ},
     kernel::{get_kernel, init_kernel, process::Process, scheduler::Scheduler},
-    mem::addr::{KernelVirtAddr, PhysAddr},
+    mem::addr::PhysAddr,
+    util::dtb::DeviceTree,
 };
 use alloc::vec::Vec;
 use core::hint::spin_loop;
 
 #[no_mangle]
 pub extern "C" fn _kernel_main(x0: usize) -> ! {
+    let dtb_addr = PhysAddr::new(x0);
+    let dtb = unsafe { DeviceTree::from_addr(dtb_addr.into()) }
+        .expect("DTB base addr should be provided by x0 and valid");
     // unsafe {
     //     let mut el: u64;
     //     core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
@@ -33,12 +37,14 @@ pub extern "C" fn _kernel_main(x0: usize) -> ! {
 
     unsafe { init_kernel() };
 
-    let dtb_virt = KernelVirtAddr::from(PhysAddr::new(x0));
-    let dtb_magic = unsafe { *(dtb_virt.to_ptr().cast::<u32>()) };
-    println!(
-        "DTB phys={:#x} magic={:#x} (expect 0xedfe0dd0)",
-        x0, dtb_magic
-    );
+    println!("{:?}", dtb.header());
+    for node in dtb.nodes() {
+        println!("node name: {} ({} char(s))", node.name(), node.name().len());
+        // break;
+    }
+
+    println!("Done getting nodes");
+    loop {}
 
     // TODO: would be cool to have some way to easily test things, like cargo test
     // test out the allocator
