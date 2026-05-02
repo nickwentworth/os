@@ -37,13 +37,14 @@ pub extern "C" fn _kernel_main(x0: usize) -> ! {
 
     unsafe { init_kernel() };
 
-    println!("{:?}", dtb.header());
     for node in dtb.nodes() {
-        println!("node name: {} ({} char(s))", node.name(), node.name().len());
-        // break;
+        println!("\n\n========== Node: {} ==========", node.name());
+        for prop in node.props() {
+            println!("{} : {:?}", prop.name(), prop.value_raw());
+        }
     }
 
-    println!("Done getting nodes");
+    println!("All nodes/props parsed");
     loop {}
 
     // TODO: would be cool to have some way to easily test things, like cargo test

@@ -21,7 +21,6 @@ fn align_up(value: usize, align: usize) -> usize {
 #[derive(Debug)]
 pub enum DtbParseErr {
     InvalidMagic(u32),
-    MisalignedStructOffset(u32),
 }
 
 pub struct DeviceTree {
@@ -42,65 +41,71 @@ impl DeviceTree {
     /// no substantial checks later on to ensure the `DeviceTree` is valid.
     pub unsafe fn from_addr(addr: KernelVirtAddr) -> Result<Self, DtbParseErr> {
         let dtb = Self { base_addr: addr };
-        let header = dtb.header();
 
-        if header.magic != Self::EXPECTED_MAGIC {
-            return Err(DtbParseErr::InvalidMagic(header.magic));
-        } else if header.offset_dt_struct % 4 != 0 {
-            return Err(DtbParseErr::MisalignedStructOffset(header.offset_dt_struct));
+        let magic = dtb.magic();
+        if magic != Self::EXPECTED_MAGIC {
+            return Err(DtbParseErr::InvalidMagic(magic));
         }
 
         Ok(dtb)
     }
 
-    pub fn header(&self) -> DeviceTreeHeader {
-        unsafe {
-            let ptr = self.base_addr.to_ptr().cast::<u32>();
-
-            DeviceTreeHeader {
-                magic: read_u32_be(ptr),
-                total_size: read_u32_be(ptr.add(1)),
-                offset_dt_struct: read_u32_be(ptr.add(2)),
-                offset_dt_strings: read_u32_be(ptr.add(3)),
-                offset_mem_rsvmap: read_u32_be(ptr.add(4)),
-                version: read_u32_be(ptr.add(5)),
-                last_compat_version: read_u32_be(ptr.add(6)),
-                boot_cpu_id: read_u32_be(ptr.add(7)),
-                size_dt_strings: read_u32_be(ptr.add(8)),
-                size_dt_struct: read_u32_be(ptr.add(9)),
-            }
-        }
-    }
+    // -------------------- Useful External Methods -------------------- //
 
     pub fn nodes<'a>(&'a self) -> DtbNodeIter<'a> {
-        let header = self.header();
-
-        let start = self
-            .base_addr
-            .to_ptr()
-            .wrapping_byte_add(header.offset_dt_struct as usize)
-            .cast();
-
         DtbNodeIter {
             dt: self,
-            cursor: start,
+            cursor: self.struct_section_ptr().cast(),
         }
     }
-}
 
-#[derive(Debug)]
-/// A mainly internal struct describing sizes/offsets of the device tree
-pub struct DeviceTreeHeader {
-    magic: u32,
-    total_size: u32,
-    offset_dt_struct: u32,
-    offset_dt_strings: u32,
-    offset_mem_rsvmap: u32,
-    version: u32,
-    last_compat_version: u32,
-    boot_cpu_id: u32,
-    size_dt_strings: u32,
-    size_dt_struct: u32,
+    // -------------------- Header-Related Getters -------------------- //
+
+    fn magic(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>()) }
+    }
+
+    fn size(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>().add(1)) }
+    }
+
+    fn struct_section_ptr(&self) -> *mut u8 {
+        let ptr = self.base_addr.to_ptr().cast::<u32>().wrapping_add(2);
+        let offset = unsafe { read_u32_be(ptr) };
+        self.base_addr.to_ptr().wrapping_byte_add(offset as usize)
+    }
+
+    fn strings_section_ptr(&self) -> *mut u8 {
+        let ptr = self.base_addr.to_ptr().cast::<u32>().wrapping_add(3);
+        let offset = unsafe { read_u32_be(ptr) };
+        self.base_addr.to_ptr().wrapping_byte_add(offset as usize)
+    }
+
+    fn mem_rsvmap_section_ptr(&self) -> *mut u8 {
+        let ptr = self.base_addr.to_ptr().cast::<u32>().wrapping_add(4);
+        let offset = unsafe { read_u32_be(ptr) };
+        self.base_addr.to_ptr().wrapping_byte_add(offset as usize)
+    }
+
+    fn version(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>().wrapping_add(5)) }
+    }
+
+    fn last_compat_version(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>().wrapping_add(6)) }
+    }
+
+    fn boot_cpu_id(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>().wrapping_add(7)) }
+    }
+
+    fn strings_section_size(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>().wrapping_add(8)) }
+    }
+
+    fn struct_section_size(&self) -> u32 {
+        unsafe { read_u32_be(self.base_addr.to_ptr().cast::<u32>().wrapping_add(9)) }
+    }
 }
 
 #[derive(Debug)]
@@ -131,6 +136,10 @@ impl DtbToken {
         }
     }
 
+    /// Calculates the size of the current token, including any included strings/values paired
+    /// with this token.
+    ///
+    /// In essence, this returns the number of bytes to the start of the next token.
     fn size(&self) -> usize {
         match self {
             Self::BeginNode { name_start_ptr } => {
@@ -186,5 +195,70 @@ impl<'dtb> DtbNode<'dtb> {
     pub fn name(&self) -> &str {
         let name_ptr = self.base_addr.wrapping_add(4);
         unsafe { read_null_terminated_str(name_ptr) }
+    }
+
+    pub fn props(&self) -> DtbPropIter<'dtb> {
+        // Calculate offset to first token after this node's name
+        let offset = 4 + align_up(self.name().len() + 1, 4);
+
+        DtbPropIter {
+            dt: self.dt,
+            cursor: self.base_addr.wrapping_add(offset),
+        }
+    }
+}
+
+pub struct DtbPropIter<'dtb> {
+    dt: &'dtb DeviceTree,
+    cursor: *mut u8,
+}
+
+impl<'dtb> Iterator for DtbPropIter<'dtb> {
+    type Item = DtbProp<'dtb>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // println!("Reading token @ {:x}", self.cursor as usize);
+            let token = unsafe { DtbToken::from_ptr(self.cursor.cast()).unwrap() };
+            // println!("Found token: {:?}", token);
+
+            match token {
+                DtbToken::Prop { .. } => {
+                    let prop = DtbProp {
+                        dt: self.dt,
+                        base_addr: self.cursor,
+                    };
+
+                    self.cursor = self.cursor.wrapping_byte_add(token.size());
+
+                    return Some(prop);
+                }
+                DtbToken::Nop => self.cursor = self.cursor.wrapping_byte_add(token.size()),
+                DtbToken::BeginNode { .. } => return None,
+                DtbToken::EndNode => return None,
+                DtbToken::End => panic!("Unexpected end node!"),
+            }
+        }
+    }
+}
+
+pub struct DtbProp<'dtb> {
+    dt: &'dtb DeviceTree,
+    base_addr: *mut u8,
+}
+
+impl<'dtb> DtbProp<'dtb> {
+    pub fn value_raw(&self) -> &[u8] {
+        unsafe {
+            let len = read_u32_be(self.base_addr.add(4).cast());
+            core::slice::from_raw_parts(self.base_addr.add(12), len as usize)
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        unsafe {
+            let offset = read_u32_be(self.base_addr.add(8).cast());
+            let name_ptr = self.dt.strings_section_ptr().byte_add(offset as usize);
+            read_null_terminated_str(name_ptr)
+        }
     }
 }
