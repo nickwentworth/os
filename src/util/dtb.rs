@@ -1,4 +1,4 @@
-use crate::mem::addr::KernelVirtAddr;
+use crate::mem::addr::{KernelVirtAddr, PhysAddr};
 
 // TODO: maybe relocate these helper functions?
 unsafe fn read_u32_be(ptr: *mut u32) -> u32 {
@@ -206,6 +206,50 @@ impl<'dtb> DtbNode<'dtb> {
             cursor: self.base_addr.wrapping_add(offset),
         }
     }
+
+    pub fn prop(&self, name: &str) -> Option<DtbProp<'dtb>> {
+        self.props().find(|prop| prop.name() == name)
+    }
+
+    // -------------------- Common Props -------------------- //
+
+    /// Returns, if it exists and is of the correct format, an (address, length) tuple for this node's
+    /// resources. Most commonly this pair is for MMIO registers, but can vary between registers.
+    ///
+    /// TODO: This property is possibly longer than just one (address, length) tuple
+    ///
+    /// TODO: The "reg" property's size depends on the parent node's #address-cells and #size-cells
+    ///       properties. For current usage, these values are both 2 (we're 64-bit), but may change
+    ///       for other devices.
+    pub fn prop_reg(&self) -> Option<(PhysAddr, usize)> {
+        let reg = self.prop("reg")?;
+        let bytes = reg.value_raw();
+
+        let size = size_of::<usize>();
+
+        if bytes.len() != 2 * size {
+            return None;
+        }
+
+        let addr = usize::from_be_bytes(bytes[0..size].try_into().unwrap());
+        let len = usize::from_be_bytes(bytes[size..2 * size].try_into().unwrap());
+
+        Some((PhysAddr::new(addr), len))
+    }
+
+    /// Returns a list of strings, from most specific to most general, defining compatibility
+    /// for drivers for this device.
+    pub fn prop_compatible(&self) -> Option<impl Iterator<Item = &str>> {
+        let compat = self.prop("compatible")?;
+        let value = compat.value_str_list();
+        Some(value)
+    }
+
+    /// Helper function to determine if this node's compatibilty property contains the given string.
+    pub fn is_compatible(&self, compat: &str) -> bool {
+        self.prop_compatible()
+            .is_some_and(|mut values| values.any(|value| value == compat))
+    }
 }
 
 pub struct DtbPropIter<'dtb> {
@@ -247,11 +291,27 @@ pub struct DtbProp<'dtb> {
 }
 
 impl<'dtb> DtbProp<'dtb> {
-    pub fn value_raw(&self) -> &[u8] {
+    pub fn value_raw(&self) -> &'dtb [u8] {
         unsafe {
             let len = read_u32_be(self.base_addr.add(4).cast());
             core::slice::from_raw_parts(self.base_addr.add(12), len as usize)
         }
+    }
+
+    pub fn value_str(&self) -> &'dtb str {
+        let bytes = self.value_raw();
+
+        if bytes.is_empty() {
+            return "";
+        }
+
+        // Ignore trailing null char
+        let trimmed = &bytes[0..bytes.len() - 1];
+        str::from_utf8(trimmed).unwrap()
+    }
+
+    pub fn value_str_list(&self) -> impl Iterator<Item = &'dtb str> {
+        self.value_str().split('\0')
     }
 
     pub fn name(&self) -> &str {

@@ -29,22 +29,15 @@ pub extern "C" fn _kernel_main(x0: usize) -> ! {
     let dtb_addr = PhysAddr::new(x0);
     let dtb = unsafe { DeviceTree::from_addr(dtb_addr.into()) }
         .expect("DTB base addr should be provided by x0 and valid");
+
     // unsafe {
     //     let mut el: u64;
     //     core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
     //     println!("Entering kernel at EL{}", (el >> 2) & 0b11);
     // }
 
-    unsafe { init_kernel() };
+    unsafe { init_kernel(dtb) };
 
-    for node in dtb.nodes() {
-        println!("\n\n========== Node: {} ==========", node.name());
-        for prop in node.props() {
-            println!("{} : {:?}", prop.name(), prop.value_raw());
-        }
-    }
-
-    println!("All nodes/props parsed");
     loop {}
 
     // TODO: would be cool to have some way to easily test things, like cargo test

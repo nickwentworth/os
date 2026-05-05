@@ -1,4 +1,4 @@
-use crate::kernel::kernel::Kernel;
+use crate::{kernel::kernel::Kernel, util::dtb::DeviceTree};
 
 pub mod cpu;
 pub mod kernel;
@@ -8,8 +8,8 @@ pub mod scheduler;
 #[global_allocator]
 static KERNEL: Kernel = Kernel::uninitialized();
 
-pub unsafe fn init_kernel() {
-    KERNEL.init();
+pub unsafe fn init_kernel(dt: DeviceTree) {
+    KERNEL.init(dt);
 }
 
 pub fn get_kernel() -> &'static Kernel {

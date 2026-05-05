@@ -1,6 +1,7 @@
 use crate::{
     devices::{Device, MmioDevice},
     mem::addr::KernelVirtAddr,
+    util::dtb::DtbNode,
 };
 
 pub struct UartPl011Device {
@@ -20,8 +21,15 @@ unsafe impl MmioDevice for UartPl011Device {
 }
 
 impl UartPl011Device {
-    pub fn new(base_addr: KernelVirtAddr) -> Self {
-        Self { base_addr }
+    pub fn try_from_node(node: &DtbNode) -> Option<Self> {
+        if !node.is_compatible("arm,pl011") {
+            return None;
+        }
+
+        let base_addr = node.prop_reg()?.0;
+        Some(Self {
+            base_addr: base_addr.into(),
+        })
     }
 }
 

@@ -5,6 +5,7 @@ use crate::{
     mem::addr::PhysAddr,
     mutex::Mutex,
     println,
+    util::dtb::DeviceTree,
 };
 use core::{alloc::GlobalAlloc, cell::OnceCell, fmt::Write};
 
@@ -26,13 +27,16 @@ impl Kernel {
     const HEAP_START: PhysAddr = PhysAddr::new(0x5000_0000);
     const HEAP_SIZE: usize = 1024 * 1024;
 
-    const UART0_BASE: PhysAddr = PhysAddr::new(0x0900_0000);
+    // const UART0_BASE: PhysAddr = PhysAddr::new(0x0900_0000);
 
-    pub fn init(&self) {
-        let uart_device = UartPl011Device::new(Self::UART0_BASE.into());
-        let uart = UartPl011::bind(uart_device);
-        // uart.init();
-        self.serial.lock().set(uart);
+    pub fn init(&self, dt: DeviceTree) {
+        for node in dt.nodes() {
+            if let Some(uart_device) = UartPl011Device::try_from_node(&node) {
+                let uart = UartPl011::bind(uart_device);
+                self.serial.lock().set(uart);
+                println!("Uart initialized!");
+            }
+        }
 
         let allocator =
             unsafe { LinkedListAllocator::new(Self::HEAP_START.into(), Self::HEAP_SIZE) };
