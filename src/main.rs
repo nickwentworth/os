@@ -15,7 +15,7 @@ mod registers;
 mod util;
 
 use crate::{
-    devices::generic::gic::GICv2,
+    devices::gic::GICv2,
     exception::{frame::ExceptionFrame, irq::IRQ},
     kernel::{get_kernel, init_kernel, process::Process, scheduler::Scheduler},
     mem::addr::PhysAddr,

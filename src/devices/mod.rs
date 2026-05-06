@@ -1,5 +1,6 @@
-pub mod generic;
-pub mod raspi;
+pub mod gic;
+pub mod timer;
+pub mod uart;
 
 pub trait Device {
     fn name(&self) -> &str;

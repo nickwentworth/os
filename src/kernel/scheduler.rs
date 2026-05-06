@@ -1,6 +1,5 @@
 use crate::{
-    devices::generic::timer::ArmPhysTimer, exception::frame::ExceptionFrame,
-    kernel::process::Process,
+    devices::timer::ArmPhysTimer, exception::frame::ExceptionFrame, kernel::process::Process,
 };
 use alloc::collections::vec_deque::VecDeque;
 use core::time::Duration;

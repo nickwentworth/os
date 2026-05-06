@@ -1,6 +1,6 @@
 use crate::{
     allocator::LinkedListAllocator,
-    devices::generic::uart::{UartPl011, UartPl011Device},
+    devices::uart::{UartPl011, UartPl011Device},
     kernel::cpu::Cpu,
     mem::addr::PhysAddr,
     mutex::Mutex,
