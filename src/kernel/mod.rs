@@ -6,14 +6,14 @@ pub mod process;
 pub mod scheduler;
 
 #[global_allocator]
-static KERNEL: Kernel = Kernel::uninitialized();
+static mut KERNEL: Kernel = Kernel::uninitialized();
 
 pub unsafe fn init_kernel(dt: DeviceTree) {
     KERNEL.init(dt);
 }
 
 pub fn get_kernel() -> &'static Kernel {
-    &KERNEL
+    unsafe { &KERNEL }
 }
 
 #[macro_export]

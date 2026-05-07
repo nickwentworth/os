@@ -1,18 +1,13 @@
 use crate::{
-    allocator::LinkedListAllocator,
-    devices::uart::{UartPl011, UartPl011Device},
-    kernel::cpu::Cpu,
-    mem::addr::PhysAddr,
-    mutex::Mutex,
-    println,
-    util::dtb::DeviceTree,
+    allocator::LinkedListAllocator, devices::registry::DeviceRegistry, kernel::cpu::Cpu,
+    mem::addr::PhysAddr, mutex::Mutex, println, util::dtb::DeviceTree,
 };
 use core::{alloc::GlobalAlloc, cell::OnceCell, fmt::Write};
 
 pub struct Kernel {
     cpus: [Cpu; 4],
     allocator: Mutex<OnceCell<LinkedListAllocator>>,
-    serial: Mutex<OnceCell<UartPl011>>,
+    drivers: DeviceRegistry,
 }
 
 impl Kernel {
@@ -20,22 +15,16 @@ impl Kernel {
         Self {
             cpus: [Cpu::new(0), Cpu::new(1), Cpu::new(2), Cpu::new(3)],
             allocator: Mutex::new(OnceCell::new()),
-            serial: Mutex::new(OnceCell::new()),
+            drivers: DeviceRegistry::empty(),
         }
     }
 
     const HEAP_START: PhysAddr = PhysAddr::new(0x5000_0000);
     const HEAP_SIZE: usize = 1024 * 1024;
 
-    // const UART0_BASE: PhysAddr = PhysAddr::new(0x0900_0000);
-
-    pub fn init(&self, dt: DeviceTree) {
+    pub fn init(&mut self, dt: DeviceTree) {
         for node in dt.nodes() {
-            if let Some(uart_device) = UartPl011Device::try_from_node(&node) {
-                let uart = UartPl011::bind(uart_device);
-                self.serial.lock().set(uart);
-                println!("Uart initialized!");
-            }
+            self.drivers.try_bind(&node);
         }
 
         let allocator =
@@ -52,10 +41,11 @@ impl Kernel {
     }
 
     pub fn serial_write_fmt(&self, args: core::fmt::Arguments) -> core::fmt::Result {
-        self.serial
-            .lock()
-            .get_mut()
+        self.drivers
+            .uart
+            .as_ref()
             .ok_or(core::fmt::Error)?
+            .lock()
             .write_fmt(args)
     }
 }

@@ -1,9 +1,14 @@
+use crate::util::dtb::DtbNode;
+
 pub mod gic;
+pub mod registry;
 pub mod timer;
 pub mod uart;
 
-pub trait Device {
-    fn name(&self) -> &str;
+pub trait Driver: Sized {
+    const COMPATIBLE: &'static str;
+
+    fn probe(node: &DtbNode) -> Result<Self, ()>;
 }
 
 pub unsafe trait MmioDevice {

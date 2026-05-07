@@ -26,8 +26,7 @@ use core::hint::spin_loop;
 
 #[no_mangle]
 pub extern "C" fn _kernel_main(x0: usize) -> ! {
-    let dtb_addr = PhysAddr::new(x0);
-    let dtb = unsafe { DeviceTree::from_addr(dtb_addr.into()) }
+    let dtb = unsafe { DeviceTree::from_addr(PhysAddr::new(x0).into()) }
         .expect("DTB base addr should be provided by x0 and valid");
 
     // unsafe {

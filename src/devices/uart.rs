@@ -1,37 +1,8 @@
 use crate::{
-    devices::{Device, MmioDevice},
+    devices::{Driver, MmioDevice},
     mem::addr::KernelVirtAddr,
     util::dtb::DtbNode,
 };
-
-pub struct UartPl011Device {
-    base_addr: KernelVirtAddr,
-}
-
-impl Device for UartPl011Device {
-    fn name(&self) -> &str {
-        "PrimeCell UART PL011"
-    }
-}
-
-unsafe impl MmioDevice for UartPl011Device {
-    fn base_addr(&self) -> *mut u32 {
-        self.base_addr.to_ptr().cast()
-    }
-}
-
-impl UartPl011Device {
-    pub fn try_from_node(node: &DtbNode) -> Option<Self> {
-        if !node.is_compatible("arm,pl011") {
-            return None;
-        }
-
-        let base_addr = node.prop_reg()?.0;
-        Some(Self {
-            base_addr: base_addr.into(),
-        })
-    }
-}
 
 /// Driver for the PrimeCell UART PL011. Enables basic functions,
 /// including transmitting and receiving characters.
@@ -39,7 +10,7 @@ impl UartPl011Device {
 /// ### Resources
 /// https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5
 pub struct UartPl011 {
-    device: UartPl011Device,
+    base_addr: KernelVirtAddr,
 }
 
 /// Configuration helper for the UART
@@ -53,6 +24,24 @@ struct UartPl011Config {
 enum UartPl011Mode {
     Transmit,
     Receive,
+}
+
+impl Driver for UartPl011 {
+    const COMPATIBLE: &'static str = "arm,pl011";
+
+    fn probe(node: &DtbNode) -> Result<Self, ()> {
+        let reg = node.prop_reg().ok_or(())?;
+        let base_addr = reg.0;
+        Ok(Self {
+            base_addr: base_addr.into(),
+        })
+    }
+}
+
+unsafe impl MmioDevice for UartPl011 {
+    fn base_addr(&self) -> *mut u32 {
+        self.base_addr.to_ptr().cast()
+    }
 }
 
 impl UartPl011 {
@@ -73,15 +62,6 @@ impl UartPl011 {
     const UART_CR_RXE: u8 = 9; // Receive enable
     const UART_CR_TXE: u8 = 8; // Transmit enable
     const UART_CR_UARTEN: u8 = 0; // UART enable
-
-    pub fn bind(device: UartPl011Device) -> Self {
-        let mut uart = Self { device };
-        uart.configure(UartPl011Config {
-            enabled: true,
-            mode: UartPl011Mode::Transmit,
-        });
-        uart
-    }
 
     pub fn init(&mut self) {
         self.configure(UartPl011Config {
@@ -106,22 +86,18 @@ impl UartPl011 {
     // -------------------- Configuration -------------------- //
 
     fn configure(&mut self, options: UartPl011Config) {
-        self.device
-            .write_bit(Self::UART_CR, Self::UART_CR_UARTEN, options.enabled);
-
+        self.write_bit(Self::UART_CR, Self::UART_CR_UARTEN, options.enabled);
         self.set_mode(options.mode);
-
-        self.device
-            .write_bit(Self::UART_LCRH, Self::UART_LCRH_FEN, true); // always enable FIFOs
+        self.write_bit(Self::UART_LCRH, Self::UART_LCRH_FEN, true); // always enable FIFOs
     }
 
     fn set_mode(&mut self, mode: UartPl011Mode) {
-        self.device.write_bit(
+        self.write_bit(
             Self::UART_CR,
             Self::UART_CR_RXE,
             mode == UartPl011Mode::Receive,
         );
-        self.device.write_bit(
+        self.write_bit(
             Self::UART_CR,
             Self::UART_CR_TXE,
             mode == UartPl011Mode::Transmit,
@@ -132,16 +108,16 @@ impl UartPl011 {
 
     fn transmit_byte(&mut self, byte: u8) {
         while self.is_busy() {}
-        self.device.write(Self::UART_DR, byte.into());
+        self.write(Self::UART_DR, byte.into());
     }
 
     fn receieve_byte(&self) -> u8 {
         while self.is_busy() {}
-        self.device.read(Self::UART_DR) as u8
+        self.read(Self::UART_DR) as u8
     }
 
     fn is_busy(&self) -> bool {
-        let fr = self.device.read(Self::UART_FR);
+        let fr = self.read(Self::UART_FR);
         fr & (1 << Self::UART_FR_BUSY) != 0
     }
 }
