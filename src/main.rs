@@ -8,17 +8,17 @@ mod allocator;
 mod devices;
 mod exception;
 mod graphics;
-mod kernel;
 mod mem;
 mod mutex;
 mod registers;
+mod sys;
 mod util;
 
 use crate::{
     devices::gic::GICv2,
     exception::{frame::ExceptionFrame, irq::IRQ},
-    kernel::{get_kernel, init_kernel, process::Process, scheduler::Scheduler},
     mem::addr::PhysAddr,
+    sys::{kernel::Kernel, process::Process, scheduler::Scheduler},
     util::dtb::DeviceTree,
 };
 use alloc::vec::Vec;
@@ -29,15 +29,8 @@ pub extern "C" fn _kernel_main(x0: usize) -> ! {
     let dtb = unsafe { DeviceTree::from_addr(PhysAddr::new(x0).into()) }
         .expect("DTB base addr should be provided by x0 and valid");
 
-    // unsafe {
-    //     let mut el: u64;
-    //     core::arch::asm!("mrs {}, CurrentEL", out(reg) el);
-    //     println!("Entering kernel at EL{}", (el >> 2) & 0b11);
-    // }
-
-    unsafe { init_kernel(dtb) };
-
-    loop {}
+    unsafe { Kernel::init_kernel(dtb) };
+    println!("Kernel initialized");
 
     // TODO: would be cool to have some way to easily test things, like cargo test
     // test out the allocator
@@ -54,7 +47,7 @@ pub extern "C" fn _kernel_main(x0: usize) -> ! {
     // graphics::init_graphics();
 
     // initialize some test processes
-    let mut scheduler = get_kernel().cpu_me().scheduler().lock();
+    let mut scheduler = Kernel::get().cpu_me().scheduler().lock();
     scheduler.register_process(Process::init(test::<1>));
     scheduler.register_process(Process::init(test::<2>));
     scheduler.register_process(Process::init(test::<3>));
@@ -67,20 +60,9 @@ pub extern "C" fn _kernel_main(x0: usize) -> ! {
         GICv2::enable_irq(IRQ::GenericPhysTimer);
     }
 
-    assert_eq!(get_kernel().cpu_me().preempt_counter(), 0);
+    assert_eq!(Kernel::get().cpu_me().preempt_counter(), 0);
 
     Scheduler::start();
-}
-
-fn test<const X: usize>() -> ! {
-    let mut i = 0u64;
-    loop {
-        println!("{X}: {i}");
-        for _ in 0..10_000_000 {
-            spin_loop();
-        }
-        i += 1;
-    }
 }
 
 #[no_mangle]
@@ -89,7 +71,7 @@ pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) -> usize {
 
     // TODO: still need to actually differentiate exception kinds/IRQs
 
-    let mut scheduler = get_kernel().cpu_me().scheduler().lock();
+    let mut scheduler = Kernel::get().cpu_me().scheduler().lock();
     let next_process = scheduler.next(x0);
     next_process.unwrap().sp()
 
@@ -98,11 +80,33 @@ pub extern "C" fn _handle_exception(x0: *mut ExceptionFrame) -> usize {
     // because we aren't advancing the exception return address
 }
 
+// -------------------- Macros -------------------- //
+
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{}", info);
     loop {}
 }
+
+#[macro_export]
+macro_rules! println {
+    ($($args:tt)*) => {
+        $crate::print!("{}\n", format_args!($($args)*))
+    };
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($args:tt)*) => {
+        $crate::_print(format_args!($($args)*))
+    };
+}
+
+pub fn _print(args: core::fmt::Arguments<'_>) {
+    Kernel::try_get().and_then(|kernel| kernel.serial_write_fmt(args).ok());
+}
+
+// -------------------- To Be Moved -------------------- //
 
 #[no_mangle]
 static mut __L0_TABLE: TranslationTable = TranslationTable::new();
@@ -115,5 +119,16 @@ struct TranslationTable([u64; 512]);
 impl TranslationTable {
     const fn new() -> Self {
         Self([0; 512])
+    }
+}
+
+fn test<const X: usize>() -> ! {
+    let mut i = 0u64;
+    loop {
+        println!("{X}: {i}");
+        for _ in 0..10_000_000 {
+            spin_loop();
+        }
+        i += 1;
     }
 }

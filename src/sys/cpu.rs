@@ -1,4 +1,4 @@
-use crate::{kernel::scheduler::Scheduler, mutex::Mutex};
+use crate::{mutex::Mutex, sys::scheduler::Scheduler};
 use core::{
     arch::asm,
     sync::atomic::{AtomicU64, Ordering},
